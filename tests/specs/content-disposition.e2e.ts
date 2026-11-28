@@ -1,25 +1,27 @@
-import { volViewPage } from '../pageobjects/volview.page';
+import { test, expect } from '../fixtures';
 import { startServer, stopServer } from '../server/content-disposition-server';
 import { AUX_PORT as SERVER_PORT } from '../e2ePorts';
 
-describe('Content-Disposition header handling', () => {
+test.describe('Content-Disposition header handling', () => {
   let server: ReturnType<typeof startServer>;
 
-  before(async () => {
+  test.beforeAll(async () => {
     server = startServer();
   });
 
-  after(async () => {
+  test.afterAll(async () => {
     if (server) {
       await stopServer(server);
     }
   });
 
-  it('should use filename from Content-Disposition when URL has no extension', async () => {
-    await volViewPage.open(`?urls=http://localhost:${SERVER_PORT}/scan`);
-    await volViewPage.waitForViews();
+  test('should use filename from Content-Disposition when URL has no extension', async ({
+    volview,
+  }) => {
+    await volview.open(`?urls=http://localhost:${SERVER_PORT}/scan`);
+    await volview.waitForViews();
 
-    const notificationCount = await volViewPage.getNotificationsCount();
+    const notificationCount = await volview.getNotificationsCount();
     expect(notificationCount).toBe(0);
   });
 });

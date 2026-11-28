@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { TEMP_DIR } from '../../wdio.shared.conf';
+import { TEMP_DIR } from '../e2eRun';
 import { AUX_PORT } from '../e2ePorts';
 import { CT_ELECTRODES } from '../datasets';
 

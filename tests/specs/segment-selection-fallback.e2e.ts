@@ -1,13 +1,10 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import JSZip from 'jszip';
-import { TEMP_DIR } from '../../wdio.shared.conf';
-import AppPage from '../pageobjects/volview.page';
-import { nudgeTo, pressAtPointer } from './annotationTestUtils';
-import {
-  openAnnotationSegments,
-  waitForSegmentContent,
-} from './segmentationTestUtils';
+import type { Page } from '@playwright/test';
+import { test, expect } from '../fixtures';
+import { containsText } from '../pageobjects/volview.page';
+import type { VolViewPage } from '../pageobjects/volview.page';
+import type { Scratch } from '../scratch';
+import type { SegmentationUtils } from './segmentationTestUtils';
 
 const SIZE = 32;
 const STEM = 'selection-fallback';
@@ -35,9 +32,17 @@ const wholeImageMask = (id: string, segmentId: string, name: string) => ({
 // Both segments cover every voxel and the session names no selection. The
 // eyedropper answers with the first segment covering a voxel, so it tells
 // whether an erase took that voxel from First.
-async function openUnselectedSegmentsWithPaint() {
+async function openUnselectedSegmentsWithPaint({
+  scratch,
+  volview,
+  segmentation,
+}: {
+  scratch: Scratch;
+  volview: VolViewPage;
+  segmentation: SegmentationUtils;
+}) {
   const parent = new Uint8Array(SIZE ** 3).map((_, offset) => offset % 251);
-  fs.writeFileSync(path.join(TEMP_DIR, `${STEM}-parent.nrrd`), nrrd(parent));
+  scratch.writeFile(`${STEM}-parent.nrrd`, nrrd(parent));
   const zip = new JSZip();
   const full = nrrd(new Uint8Array(SIZE ** 3).fill(1));
   zip.file('first-mask.nrrd', full);
@@ -66,48 +71,59 @@ async function openUnselectedSegmentsWithPaint() {
       tools: { current: 'Paint', paint: { brushSize: 8 } },
     })
   );
-  fs.writeFileSync(
-    path.join(TEMP_DIR, `${STEM}.volview.zip`),
+  scratch.writeFile(
+    `${STEM}.volview.zip`,
     await zip.generateAsync({ type: 'nodebuffer' })
   );
-  await AppPage.open(`?urls=[tmp/${STEM}.volview.zip]`);
-  await AppPage.waitForViews();
-  await openAnnotationSegments();
-  await waitForSegmentContent('First');
-  await waitForSegmentContent('Second');
+  await volview.open(`?urls=[tmp/${STEM}.volview.zip]`);
+  await volview.waitForViews();
+  await segmentation.openAnnotationSegments();
+  await segmentation.waitForSegmentContent('First');
+  await segmentation.waitForSegmentContent('Second');
 }
 
-const selectedRow = () =>
-  $('[data-testid="segment-list"] .item-row[aria-current="true"]');
+const selectedRow = (page: Page) =>
+  page.locator('[data-testid="segment-list"] .item-row[aria-current="true"]');
 
-describe('Selection with no segment chosen', () => {
-  it('highlights the first row and erases from it', async () => {
-    await openUnselectedSegmentsWithPaint();
-    await expect(selectedRow()).toHaveAttribute('aria-label', 'First');
+test.describe('Selection with no segment chosen', () => {
+  test('highlights the first row and erases from it', async ({
+    page,
+    scratch,
+    volview,
+    annotation,
+    segmentation,
+  }) => {
+    await openUnselectedSegmentsWithPaint({ scratch, volview, segmentation });
+    await expect(selectedRow(page)).toHaveAttribute('aria-label', 'First');
 
-    const [view] = await AppPage.getViews2D();
-    const canvas = view.$('canvas');
-    const [location, size] = await Promise.all([
-      canvas.getLocation(),
-      canvas.getSize(),
-    ]);
-    const x = location.x + size.width / 2;
-    const y = location.y + size.height / 2;
+    const view = volview.views2D.first();
+    const canvas = view.locator('canvas');
+    const box = await canvas.boundingBox();
+    if (!box) throw new Error('The view has no canvas on screen');
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
 
-    const erase = $('button.mode-button*=Erase');
-    await erase.waitForClickable();
+    const erase = page.locator('button.mode-button', {
+      hasText: containsText('Erase'),
+    });
     await erase.click();
-    await expect($('button.mode-button.selected')).toHaveText('Erase');
-    await nudgeTo(x, y);
-    await pressAtPointer();
-
-    await $('[data-testid="paint-eyedropper-button"]').click();
-    await browser.waitUntil(async () =>
-      String((await canvas.getCSSProperty('cursor')).value).startsWith('url(')
+    await expect(page.locator('button.mode-button.selected')).toHaveText(
+      'Erase'
     );
-    await nudgeTo(x, y);
-    await pressAtPointer();
+    await annotation.nudgeTo(x, y);
+    await annotation.pressAtPointer();
 
-    await expect(selectedRow()).toHaveAttribute('aria-label', 'Second');
+    await page.locator('[data-testid="paint-eyedropper-button"]').click();
+    await expect
+      .poll(() =>
+        canvas.evaluate((element) =>
+          getComputedStyle(element).cursor.startsWith('url(')
+        )
+      )
+      .toBe(true);
+    await annotation.nudgeTo(x, y);
+    await annotation.pressAtPointer();
+
+    await expect(selectedRow(page)).toHaveAttribute('aria-label', 'Second');
   });
 });

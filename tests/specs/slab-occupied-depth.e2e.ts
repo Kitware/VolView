@@ -1,41 +1,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { setReferenceLinesEnabled } from './referenceLinesTestUtils';
-import { Key } from 'webdriverio';
+import { test, expect, useReferenceLines } from '../fixtures';
 import { createSyntheticOCT } from '../fixtures/oct/dicom';
 import {
   createNrrdVolume,
   gappedSyntheticMask,
   syntheticMask,
 } from '../fixtures/oct/volumes';
-import { volViewPage } from '../pageobjects/volview.page';
-import {
-  makeTempDir,
-  writeManifestToFile,
-  waitForDownload,
-  SESSION_SAVE_TIMEOUT,
-} from './utils';
-import { TEMP_DIR } from '../../wdio.shared.conf';
-import {
-  attachAndSelectMask,
-  chooseEnFaceProjection,
-  enFacePixel,
-  expandEnFaceSection,
-  openEnFaceControls,
-  segmentThreshold,
-  segmentThresholdSlider,
-  segmentEye,
-  setSegmentShown,
-  setSegmentThreshold,
-  setSlabRange,
-  slabThumb,
-  waitForEnFaceReady,
-  PANEL,
-} from './octTestUtils';
-import {
-  openSegmentDisplay,
-  setSegmentationDisplaySlider,
-} from './segmentationTestUtils';
+import type { VolViewPage } from '../pageobjects/volview.page';
+import type { Utils } from './utils';
+import { MENU_PANEL, type OctUtils } from './octTestUtils';
 
 const STEM = 'slab-occupied-depth';
 const GAPPED = 'Gapped band';
@@ -43,28 +17,39 @@ const BAND = 'Synthetic retinal band';
 const ALTERNATIVE = 'Alternative synthetic band';
 const DIRECTIONAL = 'Directional band';
 
+type Helpers = { volview: VolViewPage; utils: Utils; oct: OctUtils };
+
 /** Whether the red band tints the pixel, as a thin region or a plain footprint. */
-async function expectHighlighted(present: boolean, point = [60, 12]) {
-  await waitForEnFaceReady();
-  await browser.waitUntil(
-    async () => {
-      const pixel = await enFacePixel(point[0], point[1]);
-      return present ? pixel[0] > pixel[1] + 20 : pixel[0] === pixel[1];
-    },
-    {
-      timeoutMsg: `Expected the selected slab to ${present ? 'draw' : 'not draw'} the band`,
-    }
-  );
+async function expectHighlighted(
+  oct: OctUtils,
+  present: boolean,
+  point = [60, 12]
+) {
+  await oct.waitForEnFaceReady();
+  await expect
+    .poll(
+      async () => {
+        const pixel = await oct.enFacePixel(point[0], point[1]);
+        return present ? pixel[0] > pixel[1] + 20 : pixel[0] === pixel[1];
+      },
+      {
+        message: `Expected the selected slab to ${present ? 'draw' : 'not draw'} the band`,
+      }
+    )
+    .toBe(true);
 }
 
-async function openGappedMask(twoViews = false) {
-  const directory = makeTempDir(STEM);
+async function openGappedMask(
+  { volview, utils, oct }: Helpers,
+  twoViews = false
+) {
+  const directory = utils.makeTempDir(STEM);
   fs.writeFileSync(path.join(directory, 'retina.dcm'), createSyntheticOCT());
   fs.writeFileSync(
     path.join(directory, 'gapped-band.nrrd'),
     twoViews ? syntheticMask() : gappedSyntheticMask()
   );
-  await writeManifestToFile(
+  await utils.writeManifestToFile(
     {
       layouts: {
         'Occupied depth': twoViews
@@ -74,17 +59,17 @@ async function openGappedMask(twoViews = false) {
     },
     STEM + '.json'
   );
-  await volViewPage.open(
+  await volview.open(
     '?urls=[tmp/' + STEM + '.json,tmp/' + STEM + '/retina.dcm]'
   );
-  await waitForEnFaceReady();
+  await oct.waitForEnFaceReady();
   const segment = twoViews ? BAND : GAPPED;
-  await attachAndSelectMask(STEM + '/gapped-band.nrrd', segment);
-  await openEnFaceControls();
-  await setSegmentShown(segment, true);
+  await oct.attachAndSelectMask(STEM + '/gapped-band.nrrd', segment);
+  await oct.openEnFaceControls();
+  await oct.setSegmentShown(segment, true);
 }
 
-async function openAxisMask(axis: number) {
+async function openAxisMask({ volview, utils, oct }: Helpers, axis: number) {
   const dimensions = [32, 30, 28];
   const spacing = [0.03, 0.02, 0.01];
   const origin = [19, -25, 7];
@@ -95,7 +80,7 @@ async function openAxisMask(axis: number) {
       for (let x = 2; x < dimensions[0] - 2; x++)
         if ([3, 4, 7, 8].includes([x, y, z][axis]))
           labels[x + dimensions[0] * (y + dimensions[1] * z)] = 1;
-  const directory = makeTempDir(STEM);
+  const directory = utils.makeTempDir(STEM);
   const sourceFile = `axis-${axis}.nrrd`;
   const maskFile = `axis-${axis}-mask.nrrd`;
   fs.writeFileSync(
@@ -123,279 +108,311 @@ async function openAxisMask(axis: number) {
       },
     })
   );
-  await writeManifestToFile(
+  await utils.writeManifestToFile(
     { layouts: { 'Directional occupied depth': [['enface']] } },
     STEM + '.json'
   );
-  await volViewPage.open(
+  await volview.open(
     '?urls=[tmp/' + STEM + '.json,tmp/' + STEM + '/' + sourceFile + ']'
   );
-  await waitForEnFaceReady();
-  await attachAndSelectMask(STEM + '/' + maskFile, DIRECTIONAL);
-  await chooseEnFaceProjection(
+  await oct.waitForEnFaceReady();
+  await oct.attachAndSelectMask(STEM + '/' + maskFile, DIRECTIONAL);
+  await oct.chooseEnFaceProjection(
     'enface-projection-axis',
     ['Sagittal', 'Coronal', 'Axial'][axis]
   );
-  await openEnFaceControls();
-  await setSegmentShown(DIRECTIONAL, true);
+  await oct.openEnFaceControls();
+  await oct.setSegmentShown(DIRECTIONAL, true);
   return spacing[axis] * 1000;
 }
 
-describe('Selected-slab occupied depth', () => {
-  before(async () => {
-    await volViewPage.open();
-    await setReferenceLinesEnabled(true);
-  });
-  after(async () => setReferenceLinesEnabled(false));
+test.describe('Selected-slab occupied depth', () => {
+  useReferenceLines();
 
-  it('excludes gaps, clips cropped masks to the slab, and keeps strict threshold endpoints', async () => {
-    await openGappedMask();
+  test('excludes gaps, clips cropped masks to the slab, and keeps strict threshold endpoints', async ({
+    volview,
+    utils,
+    oct,
+  }) => {
+    await openGappedMask({ volview, utils, oct });
     for (const [first, last, occupied, maximum] of [
       [100, 105, 41.6, 41.7],
       [101, 104, 20.8, 20.9],
       [101, 101, 10.4, 10.5],
       [0, 110, 41.6, 41.7],
     ]) {
-      await expandEnFaceSection('projection');
-      await setSlabRange(first, last);
-      await waitForEnFaceReady();
-      await expect(segmentThresholdSlider(GAPPED)).toHaveAttribute(
+      await oct.expandEnFaceSection('projection');
+      await oct.setSlabRange(first, last);
+      await oct.waitForEnFaceReady();
+      await expect(oct.segmentThresholdSlider(GAPPED)).toHaveAttribute(
         'aria-valuemax',
         String(maximum)
       );
-      await setSegmentThreshold(GAPPED, occupied);
-      await expectHighlighted(false);
-      await setSegmentThreshold(GAPPED, occupied + 0.1);
-      await expectHighlighted(true);
-      const absent = await enFacePixel(0, 12);
+      await oct.setSegmentThreshold(GAPPED, occupied);
+      await expectHighlighted(oct, false);
+      await oct.setSegmentThreshold(GAPPED, occupied + 0.1);
+      await expectHighlighted(oct, true);
+      const absent = await oct.enFacePixel(0, 12);
       expect(absent[0]).toBe(absent[1]);
     }
-    await expandEnFaceSection('projection');
-    await setSlabRange(102, 103);
-    await waitForEnFaceReady();
-    await expect(segmentThresholdSlider(GAPPED)).toHaveAttribute(
+    await oct.expandEnFaceSection('projection');
+    await oct.setSlabRange(102, 103);
+    await oct.waitForEnFaceReady();
+    await expect(oct.segmentThresholdSlider(GAPPED)).toHaveAttribute(
       'aria-valuemax',
       '0.1'
     );
-    await expect(segmentThreshold(GAPPED)).toHaveValue('41.7');
-    await expectHighlighted(false);
-    await expandEnFaceSection('projection');
-    await setSlabRange(100, 105);
-    await setSegmentThreshold(GAPPED, 41.6);
-    await expectHighlighted(false);
-    await setSegmentThreshold(GAPPED, null);
-    await expect(segmentThreshold(GAPPED)).toHaveValue('');
-    await expect(segmentThresholdSlider(GAPPED)).toHaveAttribute(
+    await expect(oct.segmentThreshold(GAPPED)).toHaveValue('41.7');
+    await expectHighlighted(oct, false);
+    await oct.expandEnFaceSection('projection');
+    await oct.setSlabRange(100, 105);
+    await oct.setSegmentThreshold(GAPPED, 41.6);
+    await expectHighlighted(oct, false);
+    await oct.setSegmentThreshold(GAPPED, null);
+    await expect(oct.segmentThreshold(GAPPED)).toHaveValue('');
+    await expect(oct.segmentThresholdSlider(GAPPED)).toHaveAttribute(
       'aria-valuenow',
       '41.7'
     );
-    await expectHighlighted(true);
-    await setSegmentThreshold(GAPPED, 41.6);
-    await expectHighlighted(false);
-    expect(await volViewPage.getNotificationsCount()).toBe(0);
+    await expectHighlighted(oct, true);
+    await oct.setSegmentThreshold(GAPPED, 41.6);
+    await expectHighlighted(oct, false);
+    expect(await volview.getNotificationsCount()).toBe(0);
   });
 
-  it('remeasures mask storage grown by painting in an ordinary source slice', async () => {
-    await openGappedMask();
-    await setSegmentThreshold(GAPPED, 50);
-    await expect(segmentThresholdSlider(GAPPED)).toHaveAttribute(
+  test('remeasures mask storage grown by painting in an ordinary source slice', async ({
+    page,
+    volview,
+    utils,
+    oct,
+  }) => {
+    await openGappedMask({ volview, utils, oct });
+    await oct.setSegmentThreshold(GAPPED, 50);
+    await expect(oct.segmentThresholdSlider(GAPPED)).toHaveAttribute(
       'aria-valuemax',
       '41.7'
     );
-    await browser.keys(Key.Escape);
-    await $(PANEL).waitForDisplayed({ reverse: true });
-    const source = $('[data-testid~="vtk-two-view"]');
+    await page.keyboard.press('Escape');
+    await expect(page.locator(MENU_PANEL)).toBeHidden();
+    const source = page.locator('[data-testid~="vtk-two-view"]').first();
     await source.click();
-    const slice = await volViewPage.getFirst2DSlice();
-    if (slice === null)
+    const slice = await volview.getFirst2DSlice();
+    if (slice === undefined)
       throw new Error('Source slice position is unavailable.');
-    const pixel = () => enFacePixel(64, slice - 1);
-    await browser.waitUntil(
-      async () => {
-        const [r, g] = await pixel();
-        return r > g + 20;
-      },
-      { timeoutMsg: 'Expected the original four-cell band to qualify.' }
-    );
-    await volViewPage.activatePaint();
-    const brush = $('[role="slider"][aria-label="Brush size"]');
-    await brush.waitForDisplayed();
+    const pixel = () => oct.enFacePixel(64, slice - 1);
+    await expect
+      .poll(
+        async () => {
+          const [r, g] = await pixel();
+          return r > g + 20;
+        },
+        { message: 'Expected the original four-cell band to qualify.' }
+      )
+      .toBe(true);
+    await volview.activatePaint();
+    const brush = page.locator('[role="slider"][aria-label="Brush size"]');
+    await expect(brush).toBeVisible();
     const maximumBrushSize = await brush.getAttribute('aria-valuemax');
     if (maximumBrushSize === null)
       throw new Error('Brush size maximum is unavailable.');
-    await brush.execute((element) => element.focus());
-    await browser.keys(Key.End);
+    await brush.focus();
+    await page.keyboard.press('End');
     await expect(brush).toHaveAttribute('aria-valuenow', maximumBrushSize);
-    await volViewPage.paintStrokeOnView(source);
-    await browser.action('pointer').move({ x: 10, y: 10 }).perform();
-    await waitForEnFaceReady();
-    await browser.waitUntil(
-      async () => {
-        const [r, g] = await pixel();
-        return r === g;
-      },
-      { timeoutMsg: 'Expected the thicker painted column to stop qualifying.' }
-    );
-    await openEnFaceControls();
-    await expandEnFaceSection('segments');
-    await browser.waitUntil(
-      async () =>
-        Number(
-          await segmentThresholdSlider(GAPPED).getAttribute('aria-valuemax')
-        ) > 41.7,
-      {
-        timeoutMsg:
-          'Expected the fitted thickness maximum to reflect source mask growth.',
-      }
-    );
-    await expect(segmentThreshold(GAPPED)).toHaveValue('50');
-    expect(await volViewPage.getNotificationsCount()).toBe(0);
-  });
-
-  it('restores different thin segments, slabs, thresholds and enabled states in two panes', async () => {
-    await openGappedMask(true);
-    const panes = await $$('[data-testid="enface-viewer"]').map((view) =>
-      view.getElement()
-    );
-    await setSegmentThreshold(BAND, 31);
-    await expandEnFaceSection('projection');
-    await setSlabRange(100, 103);
-    await browser.keys(Key.Escape);
-    await openEnFaceControls(panes[1]);
-    await expandEnFaceSection('projection');
-    await setSlabRange(110, 114);
-    await setSegmentShown(ALTERNATIVE, true);
-    await browser.keys(Key.Escape);
-    await openSegmentDisplay();
-    await setSegmentationDisplaySlider('Fill Opacity', 0.5);
-    await setSegmentationDisplaySlider('Outline Thickness', 5);
-    const firstPixel = () => enFacePixel(20, 12, undefined, panes[0]);
-    await browser.waitUntil(
-      async () => {
-        const [r, g] = await firstPixel();
-        return r > g + 20;
-      },
-      {
-        timeoutMsg: 'Expected the first pane to show its thin band.',
-      }
-    );
-    const secondPixel = () => enFacePixel(60, 12, undefined, panes[1]);
-    await browser.waitUntil(
-      async () => {
-        const [r, g] = await secondPixel();
-        return g > r + 20;
-      },
-      {
-        timeoutMsg:
-          'Expected the second pane to draw its whole band with Thin off.',
-      }
-    );
-    const expected = [await firstPixel(), await secondPixel()];
-    const saved = await volViewPage.saveSession();
-    await waitForDownload(path.join(TEMP_DIR, saved), SESSION_SAVE_TIMEOUT);
-    await volViewPage.open('?urls=[tmp/' + saved + ']');
-    await browser.waitUntil(
-      async () => (await $$('[data-testid="enface-viewer"]').length) === 2
-    );
-    const restored = await $$('[data-testid="enface-viewer"]').map((view) =>
-      view.getElement()
-    );
-    for (const [index, pane] of restored.entries()) {
-      await waitForEnFaceReady(pane);
-      await browser.waitUntil(
+    await volview.paintStrokeOnView(source);
+    await page.mouse.move(10, 10);
+    await oct.waitForEnFaceReady();
+    await expect
+      .poll(
+        async () => {
+          const [r, g] = await pixel();
+          return r === g;
+        },
+        {
+          message: 'Expected the thicker painted column to stop qualifying.',
+        }
+      )
+      .toBe(true);
+    await oct.openEnFaceControls();
+    await oct.expandEnFaceSection('segments');
+    await expect
+      .poll(
         async () =>
-          (await enFacePixel(index ? 60 : 20, 12, undefined, pane)).every(
-            (value, channel) => Math.abs(value - expected[index][channel]) <= 1
+          Number(
+            await oct
+              .segmentThresholdSlider(GAPPED)
+              .getAttribute('aria-valuemax')
           ),
         {
-          timeoutMsg:
-            'Expected the saved pane to restore its segmentation appearance.',
+          message:
+            'Expected the fitted thickness maximum to reflect source mask growth.',
         }
-      );
-      await openEnFaceControls(pane);
-      await expandEnFaceSection('projection');
-      await expect(slabThumb('start')).toHaveAttribute(
+      )
+      .toBeGreaterThan(41.7);
+    await expect(oct.segmentThreshold(GAPPED)).toHaveValue('50');
+    expect(await volview.getNotificationsCount()).toBe(0);
+  });
+
+  test('restores different thin segments, slabs, thresholds and enabled states in two panes', async ({
+    page,
+    volview,
+    utils,
+    oct,
+    segmentation,
+  }) => {
+    await openGappedMask({ volview, utils, oct }, true);
+    const panes = page.locator('[data-testid="enface-viewer"]');
+    await oct.setSegmentThreshold(BAND, 31);
+    await oct.expandEnFaceSection('projection');
+    await oct.setSlabRange(100, 103);
+    await page.keyboard.press('Escape');
+    await oct.openEnFaceControls(panes.nth(1));
+    await oct.expandEnFaceSection('projection');
+    await oct.setSlabRange(110, 114);
+    await oct.setSegmentShown(ALTERNATIVE, true);
+    await page.keyboard.press('Escape');
+    await segmentation.openSegmentDisplay();
+    await segmentation.setSegmentationDisplaySlider('Fill Opacity', 0.5);
+    await segmentation.setSegmentationDisplaySlider('Outline Thickness', 5);
+    const firstPixel = () => oct.enFacePixel(20, 12, undefined, panes.nth(0));
+    await expect
+      .poll(
+        async () => {
+          const [r, g] = await firstPixel();
+          return r > g + 20;
+        },
+        { message: 'Expected the first pane to show its thin band.' }
+      )
+      .toBe(true);
+    const secondPixel = () => oct.enFacePixel(60, 12, undefined, panes.nth(1));
+    await expect
+      .poll(
+        async () => {
+          const [r, g] = await secondPixel();
+          return g > r + 20;
+        },
+        {
+          message:
+            'Expected the second pane to draw its whole band with Thin off.',
+        }
+      )
+      .toBe(true);
+    const expected = [await firstPixel(), await secondPixel()];
+    const saved = await volview.saveSession();
+    await volview.open('?urls=[tmp/' + saved + ']');
+    const restored = page.locator('[data-testid="enface-viewer"]');
+    await expect(restored).toHaveCount(2);
+    for (const index of [0, 1]) {
+      const pane = restored.nth(index);
+      await oct.waitForEnFaceReady(pane);
+      await expect
+        .poll(
+          async () =>
+            (await oct.enFacePixel(index ? 60 : 20, 12, undefined, pane)).every(
+              (value, channel) =>
+                Math.abs(value - expected[index][channel]) <= 1
+            ),
+          {
+            message:
+              'Expected the saved pane to restore its segmentation appearance.',
+          }
+        )
+        .toBe(true);
+      await oct.openEnFaceControls(pane);
+      await oct.expandEnFaceSection('projection');
+      await expect(oct.slabThumb('start')).toHaveAttribute(
         'aria-valuenow',
         index ? '110' : '100'
       );
-      await expect(slabThumb('end')).toHaveAttribute(
+      await expect(oct.slabThumb('end')).toHaveAttribute(
         'aria-valuenow',
         index ? '114' : '103'
       );
-      await expandEnFaceSection('segments');
+      await oct.expandEnFaceSection('segments');
       for (const [name, pressed] of [
         [BAND, !index],
         [ALTERNATIVE, !!index],
       ] as const)
-        await expect(segmentEye(name)).toHaveAttribute(
+        await expect(oct.segmentEye(name)).toHaveAttribute(
           'aria-pressed',
           String(pressed)
         );
-      if (index) await expect(segmentThreshold(ALTERNATIVE)).toHaveValue('');
-      else await expect(segmentThreshold(BAND)).toHaveValue('31');
-      await browser.keys(Key.Escape);
+      if (index)
+        await expect(oct.segmentThreshold(ALTERNATIVE)).toHaveValue('');
+      else await expect(oct.segmentThreshold(BAND)).toHaveValue('31');
+      await page.keyboard.press('Escape');
     }
-    await openSegmentDisplay();
+    await segmentation.openSegmentDisplay();
     for (const [label, value] of [
       ['Fill Opacity', '0.5'],
       ['Outline Thickness', '5'],
     ]) {
       await expect(
-        $(
+        page.locator(
           '[data-testid="segment-list"] [role="slider"][aria-label="' +
             label +
             '"]'
         )
       ).toHaveAttribute('aria-valuenow', value);
     }
-    await openEnFaceControls(restored[1]);
+    await oct.openEnFaceControls(restored.nth(1));
     // Below the 52 um band, so the threshold hides it.
-    await setSegmentThreshold(ALTERNATIVE, 40);
-    await browser.waitUntil(
-      async () => {
-        const [r, g] = await enFacePixel(60, 12, undefined, restored[1]);
-        return g === r;
-      },
-      {
-        timeoutMsg:
-          'Expected the second pane to use its own restored segment and threshold.',
-      }
-    );
-    expect(await enFacePixel(20, 12, undefined, restored[0])).toEqual(
+    await oct.setSegmentThreshold(ALTERNATIVE, 40);
+    await expect
+      .poll(
+        async () => {
+          const [r, g] = await oct.enFacePixel(
+            60,
+            12,
+            undefined,
+            restored.nth(1)
+          );
+          return g === r;
+        },
+        {
+          message:
+            'Expected the second pane to use its own restored segment and threshold.',
+        }
+      )
+      .toBe(true);
+    expect(await oct.enFacePixel(20, 12, undefined, restored.nth(0))).toEqual(
       expected[0]
     );
-    expect(await volViewPage.getNotificationsCount()).toBe(0);
+    expect(await volview.getNotificationsCount()).toBe(0);
   });
 
   for (const axis of [0, 1, 2]) {
-    it(`uses imported geometry without unit declarations on axis ${axis} at a translated source origin`, async () => {
-      const cellLength = await openAxisMask(axis);
+    test(`uses imported geometry without unit declarations on axis ${axis} at a translated source origin`, async ({
+      volview,
+      utils,
+      oct,
+    }) => {
+      const cellLength = await openAxisMask({ volview, utils, oct }, axis);
       for (const [first, last, count] of [
         [3, 8, 4],
         [4, 7, 2],
       ]) {
-        await expandEnFaceSection('projection');
-        await setSlabRange(first, last);
-        await waitForEnFaceReady();
+        await oct.expandEnFaceSection('projection');
+        await oct.setSlabRange(first, last);
+        await oct.waitForEnFaceReady();
         const occupied = count * cellLength;
-        await expect(segmentThresholdSlider(DIRECTIONAL)).toHaveAttribute(
+        await expect(oct.segmentThresholdSlider(DIRECTIONAL)).toHaveAttribute(
           'aria-valuemax',
           String(occupied + 0.1)
         );
-        await setSegmentThreshold(DIRECTIONAL, occupied);
-        await expectHighlighted(false, [15, 14]);
-        await setSegmentThreshold(DIRECTIONAL, occupied + 0.1);
-        await expectHighlighted(true, [15, 14]);
+        await oct.setSegmentThreshold(DIRECTIONAL, occupied);
+        await expectHighlighted(oct, false, [15, 14]);
+        await oct.setSegmentThreshold(DIRECTIONAL, occupied + 0.1);
+        await expectHighlighted(oct, true, [15, 14]);
       }
-      await expandEnFaceSection('projection');
-      await setSlabRange(5, 6);
-      await waitForEnFaceReady();
-      await expect(segmentThresholdSlider(DIRECTIONAL)).toHaveAttribute(
+      await oct.expandEnFaceSection('projection');
+      await oct.setSlabRange(5, 6);
+      await oct.waitForEnFaceReady();
+      await expect(oct.segmentThresholdSlider(DIRECTIONAL)).toHaveAttribute(
         'aria-valuemax',
         '0.1'
       );
-      await expectHighlighted(false, [15, 14]);
-      expect(await volViewPage.getNotificationsCount()).toBe(0);
+      await expectHighlighted(oct, false, [15, 14]);
+      expect(await volview.getNotificationsCount()).toBe(0);
     });
   }
 });

@@ -1,10 +1,11 @@
-import { DOWNLOAD_TIMEOUT } from '@/wdio.shared.conf';
-import { volViewPage } from '../pageobjects/volview.page';
+import { test, expect } from '../fixtures';
 import { FETUS_DATASET } from '../datasets';
-import { writeManifestToFile } from './utils';
 
-describe('Automatic Layering by File Name', () => {
-  it('should automatically layer files matching the layer extension pattern', async () => {
+test.describe('Automatic Layering by File Name', () => {
+  test('should automatically layer files matching the layer extension pattern', async ({
+    volview,
+    utils,
+  }) => {
     const config = {
       io: {
         layerExtension: 'layer',
@@ -12,25 +13,20 @@ describe('Automatic Layering by File Name', () => {
     };
 
     const configFileName = 'automatic-layering-config.json';
-    await writeManifestToFile(config, configFileName);
+    await utils.writeManifestToFile(config, configFileName);
 
-    await volViewPage.open(
+    await volview.open(
       `?urls=[tmp/${FETUS_DATASET.name},tmp/${FETUS_DATASET.name},tmp/${configFileName}]&names=[base-image.mha,base-image.layer.mha,${configFileName}]`
     );
-    await volViewPage.waitForViews();
+    await volview.waitForViews();
 
-    const renderTab = await volViewPage.renderingModuleTab;
+    const renderTab = volview.renderingModuleTab;
     await renderTab.click();
 
-    await browser.waitUntil(
-      async function layerSlidersExist() {
-        const layerOpacitySliders = await volViewPage.layerOpacitySliders;
-        return (await layerOpacitySliders.length) > 0;
-      },
-      {
-        timeout: DOWNLOAD_TIMEOUT,
-        timeoutMsg: `Expected at least one layer opacity slider to verify automatic layering`,
-      }
-    );
+    await expect
+      .poll(() => volview.layerOpacitySliders.count(), {
+        message: `Expected at least one layer opacity slider to verify automatic layering`,
+      })
+      .toBeGreaterThan(0);
   });
 });

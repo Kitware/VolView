@@ -1,113 +1,115 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { useReferenceLines } from './referenceLinesTestUtils';
+import type { Locator, Page } from '@playwright/test';
+import { test, expect, useReferenceLines } from '../fixtures';
 import { createSyntheticOCT } from '../fixtures/oct/dicom';
-import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
-import { makeTempDir, writeManifestToFile, overlayOption } from './utils';
+import {
+  setValueVueInput,
+  waitForTransitions,
+} from '../pageobjects/volview.page';
+import type { Utils } from './utils';
 import {
   canvasAppearance,
-  chooseEnFaceProjection,
   displayedWindow,
-  getEnFaceWindow,
-  projectionTransform,
-  setSlabRange,
-  setEnFaceWindow,
-  waitForEnFaceReady,
   CANVAS,
   VIEWER,
   WINDOW_TOOL,
-  openEnFaceProjection,
 } from './octTestUtils';
-import { expectProjectionPixel } from './octInteractionTestUtils';
 
 const SOURCE = 'div[data-testid~="vtk-two-view"]';
 
-async function fingerprint(selector: string) {
-  return canvasAppearance(await $(selector).getElement());
+const fingerprint = (page: Page, selector: string) =>
+  canvasAppearance(page.locator(selector).first());
+
+async function selectView(utils: Utils, label: string, view: Locator) {
+  await view.locator('.view-type-select .v-field').click();
+  await utils.overlayOption(label).click();
 }
 
-async function selectView(label: string, view: WebdriverIO.Element) {
-  await view.$('.view-type-select .v-field').click();
-  const option = overlayOption(label);
-  await option.waitForClickable();
-  await option.click();
-}
-
-describe('Projection lifecycle', () => {
+test.describe('Projection lifecycle', () => {
   useReferenceLines();
 
-  it('shows the latest method and slab, preserves source peers, and remounts current settings', async () => {
-    const directory = makeTempDir('projection-lifecycle');
+  test('shows the latest method and slab, preserves source peers, and remounts current settings', async ({
+    page,
+    volview,
+    utils,
+    oct,
+    octInteraction,
+  }) => {
+    const directory = utils.makeTempDir('projection-lifecycle');
     fs.writeFileSync(path.join(directory, 'retina.dcm'), createSyntheticOCT());
-    await writeManifestToFile(
+    await utils.writeManifestToFile(
       { layouts: { 'Projection lifecycle': [['axial'], ['enface']] } },
       'projection-lifecycle.json'
     );
-    await volViewPage.open(
+    await volview.open(
       '?urls=[tmp/projection-lifecycle.json,tmp/projection-lifecycle/retina.dcm]'
     );
-    await volViewPage.waitForViews();
-    await waitForEnFaceReady();
-    await browser.waitUntil(
-      async () => (await fingerprint(SOURCE + ' canvas')).visiblePixels > 100
-    );
-    const sourcePixels = await fingerprint(SOURCE + ' canvas');
-    const sourceWindow = await displayedWindow(await $(SOURCE).getElement());
+    await volview.waitForViews();
+    await oct.waitForEnFaceReady();
+    await expect
+      .poll(
+        async () => (await fingerprint(page, SOURCE + ' canvas')).visiblePixels
+      )
+      .toBeGreaterThan(100);
+    const sourcePixels = await fingerprint(page, SOURCE + ' canvas');
+    const sourceWindow = await displayedWindow(page.locator(SOURCE).first());
 
-    await $(CANVAS).click();
-    await $(WINDOW_TOOL).click();
-    const inputs = $$('.v-overlay--active .manual-inputs input');
-    await inputs[0].waitForDisplayed();
-    await inputs[0].waitForStable();
-    await setValueVueInput(inputs[0], '1000');
-    await setValueVueInput(inputs[1], '500');
-    await browser.keys('Escape');
-    await inputs[0].waitForDisplayed({ reverse: true });
-    await expectProjectionPixel(81);
-    const geometry = await projectionTransform();
+    await page.locator(CANVAS).click();
+    await page.locator(WINDOW_TOOL).click();
+    const inputs = page.locator('.v-overlay--active .manual-inputs input');
+    await expect(inputs.nth(0)).toBeVisible();
+    await waitForTransitions(inputs.nth(0));
+    // The active class leaves as the menu closes, so follow the field out.
+    const firstInput = await inputs.nth(0).elementHandle();
+    await setValueVueInput(inputs.nth(0), '1000');
+    await setValueVueInput(inputs.nth(1), '500');
+    await page.keyboard.press('Escape');
+    await firstInput?.waitForElementState('hidden');
+    await octInteraction.expectProjectionPixel(81);
+    const geometry = await oct.projectionTransform();
 
     for (const method of ['Maximum', 'Sum', 'Mean', 'Maximum', 'Mean'])
-      await chooseEnFaceProjection('enface-projection-method', method);
-    await waitForEnFaceReady();
-    expect(await getEnFaceWindow()).toEqual({ width: 192, level: 331 });
-    await expectProjectionPixel(109);
-    await setEnFaceWindow(1000, 500);
-    await openEnFaceProjection();
+      await oct.chooseEnFaceProjection('enface-projection-method', method);
+    await oct.waitForEnFaceReady();
+    expect(await oct.getEnFaceWindow()).toEqual({ width: 192, level: 331 });
+    await octInteraction.expectProjectionPixel(109);
+    await oct.setEnFaceWindow(1000, 500);
+    await oct.openEnFaceProjection();
     for (const [first, last] of [
       [10, 50],
       [100, 103],
       [100, 100],
     ])
-      await setSlabRange(first, last);
-    await browser.keys('Escape');
-    await waitForEnFaceReady();
-    await expectProjectionPixel(75);
-    expect(await projectionTransform()).toEqual(geometry);
-    expect(await displayedWindow(await $(SOURCE).getElement())).toEqual(
+      await oct.setSlabRange(first, last);
+    await page.keyboard.press('Escape');
+    await oct.waitForEnFaceReady();
+    await octInteraction.expectProjectionPixel(75);
+    expect(await oct.projectionTransform()).toEqual(geometry);
+    expect(await displayedWindow(page.locator(SOURCE).first())).toEqual(
       sourceWindow
     );
-    expect(await fingerprint(SOURCE + ' canvas')).toEqual(sourcePixels);
+    expect(await fingerprint(page, SOURCE + ' canvas')).toEqual(sourcePixels);
 
-    const sourceCanvas = () => $(SOURCE + ' canvas');
-    await sourceCanvas().doubleClick();
-    await expect($(VIEWER)).not.toExist();
-    await sourceCanvas().waitForStable();
-    await sourceCanvas().doubleClick();
-    await waitForEnFaceReady();
-    await expectProjectionPixel(75);
-    expect(await projectionTransform()).toEqual(geometry);
+    const sourceCanvas = () => page.locator(SOURCE + ' canvas').first();
+    await sourceCanvas().dblclick();
+    await expect(page.locator(VIEWER)).not.toBeAttached();
+    await waitForTransitions(sourceCanvas());
+    await sourceCanvas().dblclick();
+    await oct.waitForEnFaceReady();
+    await octInteraction.expectProjectionPixel(75);
+    expect(await oct.projectionTransform()).toEqual(geometry);
 
-    await selectView('Axial', await $(VIEWER).getElement());
-    await expect($(VIEWER)).not.toExist();
-    const peers = await $$(SOURCE).map((view) => view.getElement());
-    await selectView('En face', peers[1]);
-    await waitForEnFaceReady();
-    await setEnFaceWindow(1000, 500);
-    await expectProjectionPixel(81);
-    expect(await displayedWindow(await $(SOURCE).getElement())).toEqual(
+    await selectView(utils, 'Axial', page.locator(VIEWER).first());
+    await expect(page.locator(VIEWER)).not.toBeAttached();
+    await selectView(utils, 'En face', page.locator(SOURCE).nth(1));
+    await oct.waitForEnFaceReady();
+    await oct.setEnFaceWindow(1000, 500);
+    await octInteraction.expectProjectionPixel(81);
+    expect(await displayedWindow(page.locator(SOURCE).first())).toEqual(
       sourceWindow
     );
-    expect(await fingerprint(SOURCE + ' canvas')).toEqual(sourcePixels);
-    expect(await volViewPage.getNotificationsCount()).toBe(0);
+    expect(await fingerprint(page, SOURCE + ' canvas')).toEqual(sourcePixels);
+    expect(await volview.getNotificationsCount()).toBe(0);
   });
 });

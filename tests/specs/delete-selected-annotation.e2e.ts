@@ -1,46 +1,54 @@
-import { type ChainablePromiseElement } from 'webdriverio';
-import AppPage from '../pageobjects/volview.page';
-import {
-  clickAt,
-  moveTo,
-  setupTest,
-  waitForCircleCount,
-} from './annotationTestUtils';
+import type { Locator, Page } from '@playwright/test';
+import { test, expect } from '../fixtures';
+import type { VolViewPage } from '../pageobjects/volview.page';
+import type { AnnotationUtils } from './annotationTestUtils';
 
 // BoundingRectangle.vue draws this around the selected annotation
-const getSelectionRectCount = async (axialView: ChainablePromiseElement) => {
-  const rects = await axialView.$$('svg rect[stroke="lightgray"]');
-  return rects.length;
-};
+const getSelectionRectCount = (axialView: Locator) =>
+  axialView.locator('svg rect[stroke="lightgray"]').count();
 
 const clickToSelect = async (
-  axialView: ChainablePromiseElement,
+  {
+    volview,
+    annotation,
+  }: { volview: VolViewPage; annotation: AnnotationUtils },
+  axialView: Locator,
   x: number,
   y: number
 ) => {
-  await AppPage.selectTool('mdi-cursor-default');
+  await volview.selectTool('mdi-cursor-default');
   // The widget manager resolves what is under the cursor from a render pass
   // driven by mouse move, so hover first and retry until the click picks it up.
-  await moveTo(x, y);
-  await browser.waitUntil(
-    async () => {
-      await clickAt(x, y);
-      return (await getSelectionRectCount(axialView)) === 1;
-    },
-    {
-      timeout: 10000,
-      interval: 500,
-      timeoutMsg: 'Clicking the annotation should draw a selection rectangle',
-    }
-  );
+  await annotation.moveTo(x, y);
+  await expect
+    .poll(
+      async () => {
+        await annotation.clickAt(x, y);
+        return getSelectionRectCount(axialView);
+      },
+      {
+        // Each attempt presses, so attempts stay half a second apart.
+        intervals: [500],
+        message: 'Clicking the annotation should draw a selection rectangle',
+      }
+    )
+    .toBe(1);
 };
 
-const pressDelete = () => browser.keys(['Delete']);
+const pressDelete = (page: Page) => page.keyboard.press('Delete');
 
-const placeRectangle = async (cx: number, cy: number, halfSize: number) => {
-  await AppPage.selectTool('mdi-vector-square');
-  await clickAt(cx - halfSize, cy - halfSize);
-  await clickAt(cx + halfSize, cy + halfSize);
+const placeRectangle = async (
+  {
+    volview,
+    annotation,
+  }: { volview: VolViewPage; annotation: AnnotationUtils },
+  cx: number,
+  cy: number,
+  halfSize: number
+) => {
+  await volview.selectTool('mdi-vector-square');
+  await annotation.clickAt(cx - halfSize, cy - halfSize);
+  await annotation.clickAt(cx + halfSize, cy + halfSize);
 };
 
 const TOOL_CASES = [
@@ -75,26 +83,35 @@ const TOOL_CASES = [
   },
 ];
 
-describe('Delete key on a selected annotation', () => {
+test.describe('Delete key on a selected annotation', () => {
   TOOL_CASES.forEach(({ tool, icon, points, handles }) => {
-    it(`deletes a selected ${tool}`, async () => {
-      const { axialView, centerX, centerY } = await setupTest();
+    test(`deletes a selected ${tool}`, async ({
+      page,
+      volview,
+      annotation,
+    }) => {
+      const { axialView, centerX, centerY } = await annotation.setupTest();
 
-      await AppPage.selectTool(icon);
+      await volview.selectTool(icon);
       for (const [dx, dy] of points) {
-        await clickAt(centerX + dx, centerY + dy);
+        await annotation.clickAt(centerX + dx, centerY + dy);
       }
-      await waitForCircleCount(
+      await annotation.waitForCircleCount(
         axialView,
         handles,
         `${tool} should have ${handles} handles`
       );
 
       const [firstX, firstY] = points[0];
-      await clickToSelect(axialView, centerX + firstX, centerY + firstY);
-      await pressDelete();
+      await clickToSelect(
+        { volview, annotation },
+        axialView,
+        centerX + firstX,
+        centerY + firstY
+      );
+      await pressDelete(page);
 
-      await waitForCircleCount(
+      await annotation.waitForCircleCount(
         axialView,
         0,
         `Delete should remove the ${tool}`
@@ -105,41 +122,73 @@ describe('Delete key on a selected annotation', () => {
 
   // Working the annotations panel leaves focus on the control that was clicked,
   // which must not swallow the delete key
-  it('deletes a selected annotation while the panel holds focus', async () => {
-    const { axialView, centerX, centerY } = await setupTest();
+  test('deletes a selected annotation while the panel holds focus', async ({
+    page,
+    volview,
+    annotation,
+  }) => {
+    const { axialView, centerX, centerY } = await annotation.setupTest();
 
-    await placeRectangle(centerX, centerY, 80);
-    await waitForCircleCount(axialView, 2, 'Rectangle should have two handles');
-    await clickToSelect(axialView, centerX - 80, centerY - 80);
+    await placeRectangle({ volview, annotation }, centerX, centerY, 80);
+    await annotation.waitForCircleCount(
+      axialView,
+      2,
+      'Rectangle should have two handles'
+    );
+    await clickToSelect(
+      { volview, annotation },
+      axialView,
+      centerX - 80,
+      centerY - 80
+    );
 
-    const annotationsTab = await AppPage.annotationsModuleTab;
-    await annotationsTab.waitForClickable();
-    await annotationsTab.click();
+    await volview.annotationsModuleTab.click();
 
-    const measurements = await $('[data-testid="measurements-section"]');
-    await measurements.waitForClickable();
-    await measurements.click();
+    await page.locator('[data-testid="measurements-section"]').click();
 
-    await pressDelete();
+    await pressDelete(page);
 
-    await waitForCircleCount(
+    await annotation.waitForCircleCount(
       axialView,
       0,
       'Delete should work while a panel control holds focus'
     );
   });
 
-  it('keeps unselected annotations', async () => {
-    const { axialView, centerX, centerY } = await setupTest();
+  test('keeps unselected annotations', async ({
+    page,
+    volview,
+    annotation,
+  }) => {
+    const { axialView, centerX, centerY } = await annotation.setupTest();
 
-    await placeRectangle(centerX - 80, centerY - 80, 40);
-    await placeRectangle(centerX + 80, centerY + 80, 40);
-    await waitForCircleCount(axialView, 4, 'Two rectangles should be placed');
+    await placeRectangle(
+      { volview, annotation },
+      centerX - 80,
+      centerY - 80,
+      40
+    );
+    await placeRectangle(
+      { volview, annotation },
+      centerX + 80,
+      centerY + 80,
+      40
+    );
+    await annotation.waitForCircleCount(
+      axialView,
+      4,
+      'Two rectangles should be placed'
+    );
 
-    await clickToSelect(axialView, centerX - 120, centerY - 120);
-    await pressDelete();
+    await clickToSelect(
+      { volview, annotation },
+      axialView,
+      centerX - 120,
+      centerY - 120
+    );
+    await pressDelete(page);
 
-    await waitForCircleCount(
+    await annotation.waitForCircleCount(
       axialView,
       2,
       'Delete should remove only the selected rectangle'

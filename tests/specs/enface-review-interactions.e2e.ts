@@ -1,17 +1,15 @@
-import { volViewPage } from '../pageobjects/volview.page';
-import { CANVAS, PANEL, waitForEnFaceReady } from './octTestUtils';
-import {
-  expectSliceLine,
-  openRetina,
-  reference,
-  registerOctTestHooks,
-  SLICE_LINE,
-} from './octInteractionTestUtils';
+import type { Page } from '@playwright/test';
+import { test, expect, registerOctTestHooks } from '../fixtures';
+import { CANVAS, MENU_PANEL } from './octTestUtils';
+import { reference, SLICE_LINE } from './octInteractionTestUtils';
 
-async function lineCoordinates() {
+async function lineCoordinates(page: Page) {
   return Promise.all(
     ['x1', 'x2', 'y1', 'y2'].map(async (attribute) => {
-      const value = await $(SLICE_LINE).getAttribute(attribute);
+      const value = await page
+        .locator(SLICE_LINE)
+        .first()
+        .getAttribute(attribute);
       if (value === null)
         throw new Error('Missing reference-line ' + attribute);
       return Number(value);
@@ -19,37 +17,47 @@ async function lineCoordinates() {
   );
 }
 
-describe('En face reference line visibility', () => {
+test.describe('En face reference line visibility', () => {
   registerOctTestHooks();
 
-  it('keeps source reference lines visible while the projection is maximized', async () => {
-    await openRetina(false, true);
-    await browser.keys('Escape');
-    await $(PANEL).waitForDisplayed({ reverse: true });
-    await $('button[data-testid^="control-button-Select "]').click();
-    await volViewPage.focusFirst2DView();
-    await expectSliceLine();
-    const before = await lineCoordinates();
-    await $(CANVAS).click();
-    await $(CANVAS).waitForStable();
-    await $(CANVAS).doubleClick();
-    await expect($('div[data-testid~="vtk-two-view"]')).not.toExist();
-    await waitForEnFaceReady();
-    await expect($$(SLICE_LINE)).toBeElementsArrayOfSize(1);
+  test('keeps source reference lines visible while the projection is maximized', async ({
+    page,
+    volview,
+    oct,
+    octInteraction,
+  }) => {
+    const canvas = page.locator(CANVAS).first();
+    await octInteraction.openRetina(false, true);
+    await page.keyboard.press('Escape');
+    await expect(page.locator(MENU_PANEL)).toBeHidden();
+    await page.locator('button[data-testid^="control-button-Select "]').click();
+    await volview.focusFirst2DView();
+    await octInteraction.expectSliceLine();
+    const before = await lineCoordinates(page);
+    await canvas.click();
+    await canvas.dblclick();
+    await expect(
+      page.locator('div[data-testid~="vtk-two-view"]')
+    ).not.toBeAttached();
+    await oct.waitForEnFaceReady();
+    await expect(page.locator(SLICE_LINE)).toHaveCount(1);
     const tolerance = 64 * Number.EPSILON * Math.max(...reference.size);
-    await browser.waitUntil(
-      async () =>
-        (await lineCoordinates()).every(
-          (value, index) =>
-            Number.isFinite(value) &&
-            Math.abs(value - before[index]) <= tolerance
-        ),
-      { timeoutMsg: 'Expected unchanged source reference-line endpoints' }
-    );
-    await $(CANVAS).waitForStable();
-    await $(CANVAS).doubleClick();
-    await $('div[data-testid~="vtk-two-view"] canvas').waitForDisplayed();
-    await expectSliceLine();
-    expect(await volViewPage.getNotificationsCount()).toBe(0);
+    await expect
+      .poll(
+        async () =>
+          (await lineCoordinates(page)).every(
+            (value, index) =>
+              Number.isFinite(value) &&
+              Math.abs(value - before[index]) <= tolerance
+          ),
+        { message: 'Expected unchanged source reference-line endpoints' }
+      )
+      .toBe(true);
+    await canvas.dblclick();
+    await expect(
+      page.locator('div[data-testid~="vtk-two-view"] canvas')
+    ).toBeVisible();
+    await octInteraction.expectSliceLine();
+    expect(await volview.getNotificationsCount()).toBe(0);
   });
 });

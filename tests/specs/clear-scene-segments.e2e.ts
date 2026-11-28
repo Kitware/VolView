@@ -1,44 +1,42 @@
-import path from 'node:path';
-import { TEMP_DIR } from '../../wdio.shared.conf';
-import { volViewPage } from '../pageobjects/volview.page';
-import {
-  openThroughDialog,
-  writeManifestToFile,
-  writeMetaImage,
-} from './utils';
-import {
-  addSegment,
-  openAnnotationSegments,
-  segmentNames,
-  waitForNamedSegments,
-  createSegmentRow,
-} from './segmentationTestUtils';
+import { test, expect } from '../fixtures';
 
 const STEM = 'clear-scene-segments';
 
-describe('Clearing the scene', () => {
-  it('drops every segment the config does not declare', async () => {
-    const image = writeMetaImage(`${STEM}.mha`);
-    await writeManifestToFile(
+test.describe('Clearing the scene', () => {
+  test('drops every segment the config does not declare', async ({
+    page,
+    scratch,
+    volview,
+    utils,
+    segmentation,
+  }) => {
+    const image = utils.writeMetaImage(`${STEM}.mha`);
+    await utils.writeManifestToFile(
       { segments: { Tumor: { color: '#ff0000' } } },
       `${STEM}-config.json`
     );
-    await volViewPage.open(`?urls=[tmp/${STEM}-config.json,tmp/${image}]`);
-    await volViewPage.waitForViews();
-    await openAnnotationSegments();
-    await waitForNamedSegments();
-    await addSegment();
-    await addSegment();
-    expect(await segmentNames()).toEqual(['Tumor', 'Segment 1', 'Segment 2']);
+    await volview.open(`?urls=[tmp/${STEM}-config.json,tmp/${image}]`);
+    await volview.waitForViews();
+    await segmentation.openAnnotationSegments();
+    await segmentation.waitForNamedSegments();
+    await segmentation.addSegment();
+    await segmentation.addSegment();
+    expect(await segmentation.segmentNames()).toEqual([
+      'Tumor',
+      'Segment 1',
+      'Segment 2',
+    ]);
 
-    await browser.keys(['Control', '/']);
-    await browser.waitUntil(async () => (await segmentNames()).length === 0);
-    await expect(createSegmentRow()).toBeDisabled();
+    await page.keyboard.press('Control+/');
+    await expect
+      .poll(async () => (await segmentation.segmentNames()).length)
+      .toBe(0);
+    await expect(segmentation.createSegmentRow()).toBeDisabled();
 
-    await openThroughDialog(path.join(TEMP_DIR, image));
-    await openAnnotationSegments();
-    await waitForNamedSegments();
-    expect(await segmentNames()).toEqual(['Tumor']);
-    expect(await volViewPage.getNotificationsCount()).toEqual(0);
+    await utils.openThroughDialog(scratch.path(image));
+    await segmentation.openAnnotationSegments();
+    await segmentation.waitForNamedSegments();
+    expect(await segmentation.segmentNames()).toEqual(['Tumor']);
+    expect(await volview.getNotificationsCount()).toEqual(0);
   });
 });

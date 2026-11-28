@@ -1,15 +1,15 @@
 import fs from 'node:fs';
-import path from 'node:path';
 import zlib from 'node:zlib';
 import { createHash } from 'node:crypto';
 import JSZip from 'jszip';
-import { TEMP_DIR } from '../../wdio.shared.conf';
-import AppPage, { setValueVueInput } from '../pageobjects/volview.page';
+import type { Locator, Page } from '@playwright/test';
+import { test, expect } from '../fixtures';
 import {
-  openAnnotationSegments,
-  waitForSegmentContent,
-} from './segmentationTestUtils';
-import { waitForDownload } from './utils';
+  setValueVueInput,
+  type VolViewPage,
+} from '../pageobjects/volview.page';
+import type { SaveDownload, Scratch } from '../scratch';
+import type { SegmentationUtils } from './segmentationTestUtils';
 
 const SIZE = 64;
 const originalCount = 48 ** 3 - 38 ** 3;
@@ -24,7 +24,15 @@ function nrrd(data: Uint8Array) {
   ]);
 }
 
-async function openHollowCube() {
+async function openHollowCube({
+  scratch,
+  volview,
+  segmentation,
+}: {
+  scratch: Scratch;
+  volview: VolViewPage;
+  segmentation: SegmentationUtils;
+}) {
   const parent = new Uint8Array(SIZE ** 3);
   const mask = new Uint8Array(SIZE ** 3);
   for (let k = 0; k < SIZE; k++) {
@@ -38,7 +46,7 @@ async function openHollowCube() {
       }
     }
   }
-  fs.writeFileSync(path.join(TEMP_DIR, 'preview-parent.nrrd'), nrrd(parent));
+  scratch.writeFile('preview-parent.nrrd', nrrd(parent));
   const zip = new JSZip();
   zip.file('mask.nrrd', nrrd(mask));
   zip.file(
@@ -71,37 +79,38 @@ async function openHollowCube() {
       ],
     })
   );
-  fs.writeFileSync(
-    path.join(TEMP_DIR, 'preview.volview.zip'),
+  scratch.writeFile(
+    'preview.volview.zip',
     await zip.generateAsync({ type: 'nodebuffer' })
   );
-  await AppPage.open('?urls=[tmp/preview.volview.zip]');
-  await AppPage.waitForViews();
-  await openAnnotationSegments();
-  await waitForSegmentContent('Cube');
-  await AppPage.activatePaint();
-  const views = await AppPage.getViews2D();
+  await volview.open('?urls=[tmp/preview.volview.zip]');
+  await volview.waitForViews();
+  await segmentation.openAnnotationSegments();
+  await segmentation.waitForSegmentContent('Cube');
+  await volview.activatePaint();
   // A click with the selection tool establishes the slice view without painting.
-  await AppPage.selectTool('mdi-cursor-default');
-  await views[0].$('canvas').click();
-  await AppPage.activatePaint();
+  await volview.selectTool('mdi-cursor-default');
+  await volview.views2D.first().locator('canvas').click();
+  await volview.activatePaint();
 }
 
-async function previewFill() {
-  await AppPage.processModeButton.waitForClickable();
-  await AppPage.processModeButton.click();
-  await AppPage.selectFillHolesProcess();
-  await AppPage.fillHolesWholeVolumeButton.waitForClickable();
-  await AppPage.fillHolesWholeVolumeButton.click();
-  await AppPage.processPreviewButton.waitForClickable();
-  await AppPage.processPreviewButton.click();
-  await AppPage.processApplyButton.waitForClickable();
+const expectClickable = async (button: Locator) => {
+  await expect(button).toBeVisible();
+  await expect(button).toBeEnabled();
+};
+
+async function previewFill(volview: VolViewPage) {
+  await volview.processModeButton.click();
+  await volview.selectFillHolesProcess();
+  await volview.fillHolesWholeVolumeButton.click();
+  await volview.processPreviewButton.click();
+  await expectClickable(volview.processApplyButton);
 }
 
 type PreviewChoice = 'original' | 'processed';
 
-const previewCanvasState = () =>
-  browser.execute(() =>
+const previewCanvasState = (page: Page) =>
+  page.evaluate(() =>
     Array.from(
       document.querySelectorAll<HTMLCanvasElement>(
         'div[data-testid~="vtk-two-view"] canvas'
@@ -152,36 +161,43 @@ const previewCanvasState = () =>
     })
   );
 
-async function renderedPreview(choice: PreviewChoice, requireSelection = true) {
+async function renderedPreview(
+  { page, volview }: { page: Page; volview: VolViewPage },
+  choice: PreviewChoice,
+  requireSelection = true
+) {
   const button =
     choice === 'original'
-      ? AppPage.processOriginalButton
-      : AppPage.processProcessedButton;
+      ? volview.processOriginalButton
+      : volview.processProcessedButton;
   let state: Awaited<ReturnType<typeof previewCanvasState>> = [];
 
-  await browser.waitUntil(
-    async () => {
-      state = await previewCanvasState();
-      const expectedInterior = choice === 'processed' ? 0.25 : 0.02;
-      const interiorMatches = state.every((canvas) =>
-        choice === 'processed'
-          ? canvas !== null && canvas.interiorOverlayRatio > expectedInterior
-          : canvas !== null && canvas.interiorOverlayRatio < expectedInterior
-      );
-      return (
-        (!requireSelection || (await AppPage.isPreviewToggleActive(button))) &&
-        state.length > 0 &&
-        state.every(
-          (canvas) =>
-            canvas !== null &&
-            canvas.visiblePixels > 100 &&
-            canvas.boundaryOverlayPixels > 50
-        ) &&
-        interiorMatches
-      );
-    },
-    { timeoutMsg: `Expected ${choice} preview pixels and selection` }
-  );
+  await expect
+    .poll(
+      async () => {
+        state = await previewCanvasState(page);
+        const expectedInterior = choice === 'processed' ? 0.25 : 0.02;
+        const interiorMatches = state.every((canvas) =>
+          choice === 'processed'
+            ? canvas !== null && canvas.interiorOverlayRatio > expectedInterior
+            : canvas !== null && canvas.interiorOverlayRatio < expectedInterior
+        );
+        return (
+          (!requireSelection ||
+            (await volview.isPreviewToggleActive(button))) &&
+          state.length > 0 &&
+          state.every(
+            (canvas) =>
+              canvas !== null &&
+              canvas.visiblePixels > 100 &&
+              canvas.boundaryOverlayPixels > 50
+          ) &&
+          interiorMatches
+        );
+      },
+      { message: `Expected ${choice} preview pixels and selection` }
+    )
+    .toBe(true);
 
   return state.map((canvas) =>
     createHash('sha256')
@@ -190,14 +206,19 @@ async function renderedPreview(choice: PreviewChoice, requireSelection = true) {
   );
 }
 
-async function exportedVoxelCount(stem: string) {
-  const destination = path.join(TEMP_DIR, `${stem}.seg.nrrd`);
-  fs.rmSync(destination, { force: true });
-  await AppPage.clickSaveSegmentsButton();
-  await AppPage.saveSegmentsFilenameInput.waitForDisplayed();
-  await setValueVueInput(AppPage.saveSegmentsFilenameInput, stem);
-  await AppPage.saveSegmentsConfirmButton.click();
-  await waitForDownload(destination, 40000);
+async function exportedVoxelCount(
+  {
+    volview,
+    saveDownload,
+  }: { volview: VolViewPage; saveDownload: SaveDownload },
+  stem: string
+) {
+  await volview.clickSaveSegmentsButton();
+  await expect(volview.saveSegmentsFilenameInput).toBeVisible();
+  await setValueVueInput(volview.saveSegmentsFilenameInput, stem);
+  const destination = await saveDownload(() =>
+    volview.saveSegmentsConfirmButton.click()
+  );
   const file = fs.readFileSync(destination);
   const split = file.indexOf('\n\n');
   const bytes = file.subarray(split + 2);
@@ -206,51 +227,71 @@ async function exportedVoxelCount(stem: string) {
   return data.reduce((count, value) => count + Number(value !== 0), 0);
 }
 
-describe('Segment preview ownership', () => {
-  beforeEach(openHollowCube);
+test.describe('Segment preview ownership', () => {
+  test.beforeEach(({ scratch, volview, segmentation }) =>
+    openHollowCube({ scratch, volview, segmentation })
+  );
 
-  it('exports committed content during a preview and saves the result after Apply', async () => {
-    expect(await exportedVoxelCount('before-preview')).toBe(originalCount);
-    await previewFill();
-    expect(await exportedVoxelCount('during-preview')).toBe(originalCount);
-    await expect(AppPage.processApplyButton).not.toBeDisplayed();
-    await AppPage.processPreviewButton.waitForClickable();
-    await AppPage.processPreviewButton.click();
-    await AppPage.processApplyButton.waitForClickable();
-    await AppPage.processOriginalButton.click();
-    await AppPage.processApplyButton.click();
-    expect(await exportedVoxelCount('applied-preview')).toBe(filledCount);
+  test('exports committed content during a preview and saves the result after Apply', async ({
+    volview,
+    saveDownload,
+  }) => {
+    const download = { volview, saveDownload };
+    expect(await exportedVoxelCount(download, 'before-preview')).toBe(
+      originalCount
+    );
+    await previewFill(volview);
+    expect(await exportedVoxelCount(download, 'during-preview')).toBe(
+      originalCount
+    );
+    await expect(volview.processApplyButton).toBeHidden();
+    await volview.processPreviewButton.click();
+    await expectClickable(volview.processApplyButton);
+    await volview.processOriginalButton.click();
+    await volview.processApplyButton.click();
+    expect(await exportedVoxelCount(download, 'applied-preview')).toBe(
+      filledCount
+    );
   });
 
-  it('keeps named preview choices idempotent for pointer and keyboard activation', async () => {
-    const initial = await renderedPreview('original', false);
-    await previewFill();
-    const processed = await renderedPreview('processed');
+  test('keeps named preview choices idempotent for pointer and keyboard activation', async ({
+    page,
+    volview,
+  }) => {
+    const viewed = { page, volview };
+    const initial = await renderedPreview(viewed, 'original', false);
+    await previewFill(volview);
+    const processed = await renderedPreview(viewed, 'processed');
     expect(processed).not.toEqual(initial);
 
-    await AppPage.processProcessedButton.click();
-    expect(await renderedPreview('processed')).toEqual(processed);
+    await volview.processProcessedButton.click();
+    expect(await renderedPreview(viewed, 'processed')).toEqual(processed);
 
-    await AppPage.processOriginalButton.execute((element) => element.focus());
-    await browser.keys('Enter');
-    const original = await renderedPreview('original');
+    await volview.processOriginalButton.focus();
+    await page.keyboard.press('Enter');
+    const original = await renderedPreview(viewed, 'original');
     expect(original).toEqual(initial);
 
-    await browser.keys('Enter');
-    expect(await renderedPreview('original')).toEqual(original);
+    await page.keyboard.press('Enter');
+    expect(await renderedPreview(viewed, 'original')).toEqual(original);
 
-    await AppPage.processProcessedButton.click();
-    expect(await renderedPreview('processed')).toEqual(processed);
+    await volview.processProcessedButton.click();
+    expect(await renderedPreview(viewed, 'processed')).toEqual(processed);
   });
 
-  it('cancels a preview before a brush stroke and preserves the new stroke', async () => {
-    await previewFill();
-    await AppPage.selectTool('mdi-cursor-default');
-    await AppPage.activatePaint();
-    const views = await AppPage.getViews2D();
-    await AppPage.paintStrokeOnView(views[0]);
-    await expect(AppPage.processApplyButton).not.toBeDisplayed();
-    const count = await exportedVoxelCount('paint-after-preview');
+  test('cancels a preview before a brush stroke and preserves the new stroke', async ({
+    volview,
+    saveDownload,
+  }) => {
+    await previewFill(volview);
+    await volview.selectTool('mdi-cursor-default');
+    await volview.activatePaint();
+    await volview.paintStrokeOnView(volview.views2D.first());
+    await expect(volview.processApplyButton).toBeHidden();
+    const count = await exportedVoxelCount(
+      { volview, saveDownload },
+      'paint-after-preview'
+    );
     expect(count).toBeGreaterThan(originalCount);
     expect(count).toBeLessThan(filledCount);
   });

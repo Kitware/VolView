@@ -1,23 +1,25 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { volViewPage } from '../pageobjects/volview.page';
+import type { Page } from '@playwright/test';
+import { test, expect } from '../fixtures';
 import {
-  captureViewPixels,
-  makeTempDir,
-  selectLayout,
-  writeManifestToFile,
-} from './utils';
+  exactText,
+  waitForTransitions,
+  type VolViewPage,
+} from '../pageobjects/volview.page';
+import type { Utils } from './utils';
 
 const volumeView = '[data-testid~="vtk-volume-view"]';
 const coronalView = '.oblique-grid > div:nth-child(1) [data-testid="vtk-view"]';
 const sagittalView =
   '.oblique-grid > div:nth-child(3) [data-testid="vtk-view"]';
 const axialView = '.oblique-grid > div:nth-child(4) [data-testid="vtk-view"]';
-const cropButton = () => $('button[data-testid^="control-button-Crop "]');
+const cropButton = (page: Page) =>
+  page.locator('button[data-testid^="control-button-Crop "]');
 const inset = 40;
 
-async function openRamp() {
-  const directory = makeTempDir('widget-interactions');
+async function openRamp(volview: VolViewPage, utils: Utils) {
+  const directory = utils.makeTempDir('widget-interactions');
   const header = [
     'NRRD0005',
     'type: short',
@@ -35,22 +37,22 @@ async function openRamp() {
     return 3 * x + 5 * y + 7 * z + (x >= 16 ? 100 : 0);
   }).join(' ');
   writeFileSync(join(directory, 'ramp.nrrd'), `${header}\n\n${values}`);
-  await writeManifestToFile(
+  await utils.writeManifestToFile(
     {
       windowing: { width: 565, level: 282.5 },
     },
     'widget-interactions-config.json'
   );
-  await volViewPage.open(
+  await volview.open(
     '?urls=[tmp/widget-interactions-config.json,tmp/widget-interactions/ramp.nrrd]'
   );
-  await volViewPage.waitForViews();
+  await volview.waitForViews();
 }
 
-const capture = async (selector: string, name: string) =>
-  (await captureViewPixels(selector, inset, `${name}.png`))[0];
+const capturer = (utils: Utils) => async (selector: string, name: string) =>
+  (await utils.captureViewPixels(selector, inset, `${name}.png`))[0];
 
-type Pixels = Awaited<ReturnType<typeof capture>>;
+type Pixels = Awaited<ReturnType<ReturnType<typeof capturer>>>;
 
 function volumePixels({ data }: Pixels) {
   let foreground = 0;
@@ -84,21 +86,20 @@ function changedGrayPixels(before: Pixels, after: Pixels) {
 }
 
 async function drag(
+  page: Page,
+  utils: Utils,
   from: { x: number; y: number },
   to: { x: number; y: number }
 ) {
-  await browser
-    .action('pointer')
-    .move({ x: Math.round(from.x), y: Math.round(from.y) })
-    .down()
-    .move({ x: Math.round(to.x), y: Math.round(to.y) })
-    .up()
-    .perform();
-  await $('header').moveTo();
+  await page.mouse.move(Math.round(from.x), Math.round(from.y));
+  await page.mouse.down();
+  await page.mouse.move(Math.round(to.x), Math.round(to.y));
+  await page.mouse.up();
+  await utils.moveToElement(page.locator('header'));
 }
 
-async function cropEdges() {
-  return browser.execute(() => {
+async function cropEdges(page: Page) {
+  return page.evaluate(() => {
     const view = document.querySelector('[data-testid~="vtk-two-view"]')!;
     return Array.from(view.querySelectorAll('svg line.pointer-events-all'))
       .map((element) => {
@@ -170,123 +171,149 @@ function cursorPositions({ width, data }: Pixels) {
 }
 
 async function viewportPoint(
+  page: Page,
   selector: string,
   point: { x: number; y: number }
 ) {
-  const location = await $(selector).getLocation();
-  return { x: location.x + inset + point.x, y: location.y + inset + point.y };
+  const box = await page.locator(selector).boundingBox();
+  if (!box) throw new Error(`Expected ${selector} on screen`);
+  return { x: box.x + inset + point.x, y: box.y + inset + point.y };
 }
 
-describe('VTK crop and reslice interactions', () => {
-  it('clips the volume when a slice crop edge moves and restores it on reset', async () => {
-    await openRamp();
-    await selectLayout('Four Up', 3, true);
-    await cropButton().click();
-    await browser.keys('Escape');
-    await browser.waitUntil(async () => (await cropEdges()).length === 2);
-    await $('header').moveTo();
-    await browser.waitUntil(async () => {
-      const pixels = volumePixels(await capture(volumeView, 'crop-original'));
-      return pixels.foreground > 1000 && pixels.handles > 500;
-    });
+test.describe('VTK crop and reslice interactions', () => {
+  test('clips the volume when a slice crop edge moves and restores it on reset', async ({
+    page,
+    volview,
+    utils,
+  }) => {
+    const capture = capturer(utils);
+    const header = page.locator('header');
+    await openRamp(volview, utils);
+    await utils.selectLayout('Four Up', 3, true);
+    await cropButton(page).click();
+    await page.keyboard.press('Escape');
+    await expect.poll(async () => (await cropEdges(page)).length).toBe(2);
+    await utils.moveToElement(header);
+    await expect
+      .poll(async () => {
+        const pixels = volumePixels(await capture(volumeView, 'crop-original'));
+        return pixels.foreground > 1000 && pixels.handles > 500;
+      })
+      .toBe(true);
     const original = volumePixels(
       await capture(volumeView, 'crop-original')
     ).foreground;
-    const [left, right] = await cropEdges();
+    const [left, right] = await cropEdges(page);
     const destination = { x: left.x + (right.x - left.x) * 0.65, y: left.y };
-    await drag(left, destination);
-    await browser.waitUntil(
-      async () => (await cropEdges())[0].x > left.x + (right.x - left.x) / 2
-    );
-    await browser.waitUntil(
-      async () =>
-        volumePixels(await capture(volumeView, 'crop-clipped')).foreground <
-        original * 0.8
-    );
+    await drag(page, utils, left, destination);
+    await expect
+      .poll(async () => (await cropEdges(page))[0].x)
+      .toBeGreaterThan(left.x + (right.x - left.x) / 2);
+    await expect
+      .poll(
+        async () =>
+          volumePixels(await capture(volumeView, 'crop-clipped')).foreground
+      )
+      .toBeLessThan(original * 0.8);
 
-    await cropButton().click();
-    await $('[data-testid="control-button-Reset Crop"]').click();
-    await browser.keys('Escape');
-    await $('header').moveTo();
-    await browser.waitUntil(
-      async () => Math.abs((await cropEdges())[0].x - left.x) < 1
-    );
-    await browser.waitUntil(
-      async () =>
-        volumePixels(await capture(volumeView, 'crop-reset')).foreground >
-        original * 0.95
-    );
+    await cropButton(page).click();
+    await page.locator('[data-testid="control-button-Reset Crop"]').click();
+    await page.keyboard.press('Escape');
+    await utils.moveToElement(header);
+    await expect
+      .poll(async () => Math.abs((await cropEdges(page))[0].x - left.x))
+      .toBeLessThan(1);
+    await expect
+      .poll(
+        async () =>
+          volumePixels(await capture(volumeView, 'crop-reset')).foreground
+      )
+      .toBeGreaterThan(original * 0.95);
   });
 
-  it('translates and rotates oblique reslice planes through their rendered handles', async () => {
-    await openRamp();
-    await volViewPage.layoutButton.click();
-    await $('.v-menu.v-overlay--active .v-overlay__content').waitForStable();
-    await $('.v-list-item-title=Oblique').waitForClickable();
-    await $('.v-list-item-title=Oblique').click();
-    await $('.oblique-grid').waitForDisplayed();
-    await $('.oblique-grid').waitForStable();
-    await $('header').moveTo();
-    await browser.waitUntil(async () => {
-      const cursor = cursorPositions(
-        await capture(coronalView, 'reslice-original')
-      );
-      return (
-        cursor.verticalPixels > 50 &&
-        cursor.horizontalPixels > 50 &&
-        cursor.handleY !== undefined
-      );
-    });
+  test('translates and rotates oblique reslice planes through their rendered handles', async ({
+    page,
+    volview,
+    utils,
+  }) => {
+    const capture = capturer(utils);
+    const header = page.locator('header');
+    const obliqueGrid = page.locator('.oblique-grid');
+    await openRamp(volview, utils);
+    await volview.layoutButton.click();
+    await waitForTransitions(
+      page.locator('.v-menu.v-overlay--active .v-overlay__content')
+    );
+    await page
+      .locator('.v-list-item-title', { hasText: exactText('Oblique') })
+      .click();
+    await expect(obliqueGrid).toBeVisible();
+    await waitForTransitions(obliqueGrid);
+    await utils.moveToElement(header);
+    await expect
+      .poll(async () => {
+        const cursor = cursorPositions(
+          await capture(coronalView, 'reslice-original')
+        );
+        return (
+          cursor.verticalPixels > 50 &&
+          cursor.horizontalPixels > 50 &&
+          cursor.handleY !== undefined
+        );
+      })
+      .toBe(true);
     const original = await capture(coronalView, 'reslice-original');
     const sagittal = await capture(sagittalView, 'reslice-sagittal');
     const axial = await capture(axialView, 'reslice-axial');
     const cursor = cursorPositions(original);
-    const center = await viewportPoint(coronalView, cursor);
-    await drag(center, { x: center.x + 60, y: center.y + 40 });
-    await browser.waitUntil(
-      async () =>
+    const center = await viewportPoint(page, coronalView, cursor);
+    await drag(page, utils, center, { x: center.x + 60, y: center.y + 40 });
+    await expect
+      .poll(async () =>
         changedGrayPixels(
           sagittal,
           await capture(sagittalView, 'reslice-translated-sagittal')
-        ) > 1000
-    );
-    await browser.waitUntil(
-      async () =>
+        )
+      )
+      .toBeGreaterThan(1000);
+    await expect
+      .poll(async () =>
         changedGrayPixels(
           axial,
           await capture(axialView, 'reslice-translated-axial')
-        ) > 1000
-    );
+        )
+      )
+      .toBeGreaterThan(1000);
 
-    await $('[data-testid="control-button-Reset Views"]').click();
-    await $('header').moveTo();
-    await browser.waitUntil(
-      async () =>
-        changedGrayPixels(
-          original,
-          await capture(coronalView, 'reslice-reset')
-        ) < 20
-    );
+    await page.locator('[data-testid="control-button-Reset Views"]').click();
+    await utils.moveToElement(header);
+    await expect
+      .poll(async () =>
+        changedGrayPixels(original, await capture(coronalView, 'reslice-reset'))
+      )
+      .toBeLessThan(20);
     const reset = cursorPositions(await capture(coronalView, 'reslice-reset'));
     expect(reset.handleY).toBeDefined();
-    const handle = await viewportPoint(coronalView, {
+    const handle = await viewportPoint(page, coronalView, {
       x: reset.x,
       y: reset.handleY!,
     });
-    await drag(handle, { x: handle.x + 35, y: handle.y + 15 });
-    await browser.waitUntil(
-      async () =>
+    await drag(page, utils, handle, { x: handle.x + 35, y: handle.y + 15 });
+    await expect
+      .poll(async () =>
         changedGrayPixels(
           sagittal,
           await capture(sagittalView, 'reslice-rotated-sagittal')
-        ) > 1000
-    );
-    await browser.waitUntil(
-      async () =>
+        )
+      )
+      .toBeGreaterThan(1000);
+    await expect
+      .poll(async () =>
         changedGrayPixels(
           axial,
           await capture(axialView, 'reslice-rotated-axial')
-        ) > 1000
-    );
+        )
+      )
+      .toBeGreaterThan(1000);
   });
 });

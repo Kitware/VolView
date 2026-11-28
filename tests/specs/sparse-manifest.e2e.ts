@@ -1,19 +1,10 @@
+import { test, expect } from '../fixtures';
 import { PROSTATE_610_LABELMAP_MANIFEST } from './configTestUtils';
 import { MINIMAL_DICOM } from '../datasets';
-import {
-  openVolViewPage,
-  writeManifestToFile,
-  writeManifestToZip,
-} from './utils';
-import {
-  openAnnotationSegments,
-  openSegmentShapes,
-  waitForNamedSegments,
-  waitForSegmentContent,
-} from './segmentationTestUtils';
+import { containsText } from '../pageobjects/volview.page';
 
-describe('Sparse manifest.json', () => {
-  it('loads manifest with only URL data source', async () => {
+test.describe('Sparse manifest.json', () => {
+  test('loads manifest with only URL data source', async ({ utils }) => {
     const sparseManifest = {
       version: '6.1.0',
       dataSources: [
@@ -26,11 +17,15 @@ describe('Sparse manifest.json', () => {
     };
 
     const fileName = 'sparse-url-only.volview.zip';
-    await writeManifestToZip(sparseManifest, fileName);
-    await openVolViewPage(fileName);
+    await utils.writeManifestToZip(sparseManifest, fileName);
+    await utils.openVolViewPage(fileName);
   });
 
-  it('loads sparse manifest with tools section (rectangle)', async () => {
+  test('loads sparse manifest with tools section (rectangle)', async ({
+    page,
+    utils,
+    segmentation,
+  }) => {
     const sparseManifest = {
       version: '6.1.0',
       dataSources: [
@@ -66,27 +61,23 @@ describe('Sparse manifest.json', () => {
     };
 
     const fileName = 'sparse-url-rectangle.volview.zip';
-    await writeManifestToZip(sparseManifest, fileName);
-    await openVolViewPage(fileName);
+    await utils.writeManifestToZip(sparseManifest, fileName);
+    await utils.openVolViewPage(fileName);
 
-    await openSegmentShapes();
+    await segmentation.openSegmentShapes();
 
-    await browser.waitUntil(
-      async () => {
-        const rectangleEntries = await $$(
-          '[data-testid="segment-shape-row"] i.mdi-vector-square'
-        );
-        const count = await rectangleEntries.length;
-        return count >= 1;
-      },
-      {
-        timeout: 5000,
-        timeoutMsg: 'Rectangle tool not found in measurements list',
-      }
-    );
+    await expect
+      .poll(
+        () =>
+          page
+            .locator('[data-testid="segment-shape-row"] i.mdi-vector-square')
+            .count(),
+        { message: 'Rectangle tool not found in measurements list' }
+      )
+      .toBeGreaterThanOrEqual(1);
   });
 
-  it('loads standalone JSON state file (not zipped)', async () => {
+  test('loads standalone JSON state file (not zipped)', async ({ utils }) => {
     const sparseManifest = {
       version: '6.1.0',
       dataSources: [
@@ -99,26 +90,32 @@ describe('Sparse manifest.json', () => {
     };
 
     const fileName = 'standalone-state.volview.json';
-    await writeManifestToFile(sparseManifest, fileName);
-    await openVolViewPage(fileName);
+    await utils.writeManifestToFile(sparseManifest, fileName);
+    await utils.openVolViewPage(fileName);
   });
 
-  it('loads remote segment group from URI', async () => {
+  test('loads remote segment group from URI', async ({
+    page,
+    utils,
+    segmentation,
+  }) => {
     const fileName = 'remote-segment-group.volview.json';
-    await writeManifestToFile(PROSTATE_610_LABELMAP_MANIFEST, fileName);
-    await openVolViewPage(fileName);
+    await utils.writeManifestToFile(PROSTATE_610_LABELMAP_MANIFEST, fileName);
+    await utils.openVolViewPage(fileName);
 
-    await openAnnotationSegments();
-    await waitForNamedSegments();
-    await waitForSegmentContent('Right hip');
+    await segmentation.openAnnotationSegments();
+    await segmentation.waitForNamedSegments();
+    await segmentation.waitForSegmentContent('Right hip');
 
     // Verify the segment group source image is NOT in the Anonymous section
-    const dataTab = await $('button[data-testid="module-tab-Data"]');
+    const dataTab = page.locator('button[data-testid="module-tab-Data"]');
     await dataTab.click();
 
     // The Anonymous panel should not exist since the labelmap source image should be removed
-    const anonymousPanelTitle = await $('.v-expansion-panel-title*=Anonymous');
-    const exists = await anonymousPanelTitle.isExisting();
+    const anonymousPanelTitle = page.locator('.v-expansion-panel-title', {
+      hasText: containsText('Anonymous'),
+    });
+    const exists = (await anonymousPanelTitle.count()) > 0;
     expect(exists).toBe(false);
   });
 });

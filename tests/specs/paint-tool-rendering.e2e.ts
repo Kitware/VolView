@@ -1,94 +1,69 @@
-import AppPage from '../pageobjects/volview.page';
+import { test, expect } from '../fixtures';
 import { PROSTATEX_DATASET } from '../datasets';
-import { openUrls } from './utils';
-import { moveTo } from './annotationTestUtils';
+import { HIDE_VIEW_ANNOTATIONS } from '../pageobjects/volview.page';
 
-const MAX_MISMATCH_PERCENT = 0.01;
+const MAX_MISMATCH_RATIO = 0.0001;
 
-describe('Paint tool rendering', () => {
-  it('should not black out axial view after painting', async () => {
-    await openUrls([PROSTATEX_DATASET]);
+test.describe('Paint tool rendering', () => {
+  test('should not black out axial view after painting', async ({
+    page,
+    volview,
+    utils,
+    annotation,
+  }) => {
+    await utils.openUrls([PROSTATEX_DATASET]);
 
-    const views2D = await AppPage.getViews2D();
-    const axialView = views2D[0];
+    const axialView = volview.views2D.first();
 
-    await AppPage.activatePaint();
+    await volview.activatePaint();
 
-    const canvas = await axialView.$('canvas');
-    const location = await canvas.getLocation();
-    const size = await canvas.getSize();
+    const canvas = axialView.locator('canvas');
+    const { centerX, centerY } = await annotation.dragFromViewCenter(
+      axialView,
+      [[50, 30]]
+    );
 
-    const centerX = location.x + size.width / 2;
-    const centerY = location.y + size.height / 2;
-
-    await browser
-      .action('pointer')
-      .move({ x: Math.round(centerX), y: Math.round(centerY) })
-      .down()
-      .move({ x: Math.round(centerX + 50), y: Math.round(centerY + 30) })
-      .up()
-      .perform();
-
-    for (let i = 0; i < 5; i++) {
-      await browser
-        .action('pointer')
-        .move({ x: Math.round(centerX + i * 20), y: Math.round(centerY) })
-        .perform();
-    }
+    for (let i = 0; i < 5; i++)
+      await page.mouse.move(Math.round(centerX + i * 20), Math.round(centerY));
 
     const canvasImage = () =>
-      browser.execute(
-        (element) => (element as HTMLCanvasElement).toDataURL(),
-        canvas
-      );
+      canvas.evaluate((element) => (element as HTMLCanvasElement).toDataURL());
     const hovered = await canvasImage();
-    await moveTo(10, 10);
-    await browser.waitUntil(async () => (await canvasImage()) !== hovered, {
-      timeoutMsg: 'Brush preview should disappear when leaving the view',
-    });
+    await annotation.moveTo(10, 10);
+    await expect
+      .poll(canvasImage, {
+        message: 'Brush preview should disappear when leaving the view',
+      })
+      .not.toBe(hovered);
     const withoutPreview = await canvasImage();
-    const annotations = await axialView.$('.view-annotations');
 
-    await browser.waitUntil(
-      async () => {
-        const result = await browser.checkElement(
-          axialView,
-          'paint_tool_axial_view_after_stroke',
-          {
-            biDiOrigin: 'viewport',
-            removeElements: [annotations],
-            rawMisMatchPercentage: true,
-            saveAboveTolerance: MAX_MISMATCH_PERCENT,
-          }
-        );
-        return (result as number) <= MAX_MISMATCH_PERCENT;
-      },
-      {
-        timeout: 10000,
-        timeoutMsg: `Painted axial view should match its baseline within ${MAX_MISMATCH_PERCENT}%`,
-        interval: 1000,
-      }
-    );
+    await expect(
+      axialView,
+      `Painted axial view should match its baseline within ${MAX_MISMATCH_RATIO * 100}%`
+    ).toHaveScreenshot('paint_tool_axial_view_after_stroke.png', {
+      stylePath: HIDE_VIEW_ANNOTATIONS,
+      maxDiffPixelRatio: MAX_MISMATCH_RATIO,
+    });
 
-    await moveTo(centerX - 60, centerY);
-    await browser.waitUntil(
-      async () => (await canvasImage()) !== withoutPreview,
-      { timeoutMsg: 'Brush preview should appear without painting' }
-    );
+    await annotation.moveTo(centerX - 60, centerY);
+    await expect
+      .poll(canvasImage, {
+        message: 'Brush preview should appear without painting',
+      })
+      .not.toBe(withoutPreview);
     const firstPreview = await canvasImage();
-    await moveTo(centerX - 30, centerY);
-    await browser.waitUntil(
-      async () => (await canvasImage()) !== firstPreview,
-      { timeoutMsg: 'Brush preview should follow the pointer without painting' }
-    );
+    await annotation.moveTo(centerX - 30, centerY);
+    await expect
+      .poll(canvasImage, {
+        message: 'Brush preview should follow the pointer without painting',
+      })
+      .not.toBe(firstPreview);
 
-    await moveTo(10, 10);
-    await browser.waitUntil(
-      async () => (await canvasImage()) === withoutPreview,
-      {
-        timeoutMsg:
-          'Moving the preview should leave the painted image unchanged',
-      }
-    );
+    await annotation.moveTo(10, 10);
+    await expect
+      .poll(canvasImage, {
+        message: 'Moving the preview should leave the painted image unchanged',
+      })
+      .toBe(withoutPreview);
   });
 });

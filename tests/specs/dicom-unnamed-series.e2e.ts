@@ -1,17 +1,15 @@
 import * as path from 'path';
 import * as fs from 'fs';
-import { volViewPage } from '../pageobjects/volview.page';
-import { TEMP_DIR } from '../../wdio.shared.conf';
+import { test, expect } from '../fixtures';
 import { buildSyntheticDicom, newUid } from './syntheticDicom';
 
 const DIR_NAME = 'dicom-unnamed-series';
 const MANIFEST = 'dicom-unnamed-series.json';
 const SERIES_UID = newUid();
 
-describe('DICOM series without SeriesDescription or SeriesNumber', () => {
-  before(() => {
-    const dir = path.join(TEMP_DIR, DIR_NAME);
-    fs.mkdirSync(dir, { recursive: true });
+test.describe('DICOM series without SeriesDescription or SeriesNumber', () => {
+  test.beforeEach(({ utils }) => {
+    const dir = utils.makeTempDir(DIR_NAME);
     const studyUid = newUid();
     const resources = [0, 1, 2].map((i) => {
       const filename = `slice-${i}.dcm`;
@@ -26,22 +24,18 @@ describe('DICOM series without SeriesDescription or SeriesNumber', () => {
       fs.writeFileSync(path.join(dir, filename), bytes);
       return { url: `tmp/${DIR_NAME}/${filename}`, name: filename };
     });
-    fs.writeFileSync(
-      path.join(TEMP_DIR, MANIFEST),
-      JSON.stringify({ resources })
-    );
+    return utils.writeManifestToFile({ resources }, MANIFEST);
   });
 
-  it('names the volume card by its SeriesInstanceUID', async () => {
-    await volViewPage.open(`?urls=[tmp/${MANIFEST}]`);
-    await volViewPage.waitForViews();
-    await browser.waitUntil(
-      async () => {
-        const cards = await $$('.volume-card .series-desc');
-        if ((await cards.length) !== 1) return false;
-        return (await cards[0].getText()) === SERIES_UID;
-      },
-      { timeoutMsg: 'expected one volume card named by its SeriesInstanceUID' }
-    );
+  test('names the volume card by its SeriesInstanceUID', async ({
+    page,
+    volview,
+  }) => {
+    await volview.open(`?urls=[tmp/${MANIFEST}]`);
+    await volview.waitForViews();
+    await expect(
+      page.locator('.volume-card .series-desc'),
+      'expected one volume card named by its SeriesInstanceUID'
+    ).toHaveText([SERIES_UID]);
   });
 });

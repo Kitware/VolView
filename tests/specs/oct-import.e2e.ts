@@ -1,206 +1,167 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import {
-  attachMaskThroughDataPanel,
-  waitForEnFaceReady,
-  stageIllustrativeMask,
-  stageGenericOCT,
-  expectControlsBesideSelector,
-  expandEnFaceSection,
-  setSlabRange,
-  setEnFaceWindow,
-  slabThumb,
-  getEnFaceWindow as getWindow,
-  selectEnFace,
-  selectTwoRowLayout,
-  CANVAS,
-  openEnFaceProjection,
-  openEnFaceControls,
-  selectSetting,
-  segmentThreshold,
-  segmentEye,
-  setSegmentThreshold,
-  expectHighlight,
-} from './octTestUtils';
-import { TEMP_DIR } from '../../wdio.shared.conf';
-import { volViewPage } from '../pageobjects/volview.page';
-import {
-  makeTempDir,
-  openThroughDialog,
-  waitForDownload,
-  SESSION_SAVE_TIMEOUT,
-} from './utils';
-import { waitForFirstCachedImageSpacing } from './imageCacheUtils';
-import {
-  openAnnotationSegments,
-  selectSegment,
-  waitForSegmentContent,
-} from './segmentationTestUtils';
-import {
-  reference,
-  STEM,
-  stageFixture,
-  expectProjectionPixel,
-  dragEnFaceContrast,
-  expectStackedMaskWithoutSidebar,
-  expectSliceLine,
-  registerOctTestHooks,
-} from './octInteractionTestUtils';
+import { test, expect, registerOctTestHooks } from '../fixtures';
+import { stageIllustrativeMask, stageGenericOCT, CANVAS } from './octTestUtils';
+import { reference, STEM } from './octInteractionTestUtils';
 
-describe('Retinal OCT import', () => {
+test.describe('Retinal OCT import', () => {
   registerOctTestHooks();
-  it('builds stacked enface views with the layout grid after file import and attaches a segmentation through the Data panel', async () => {
-    await browser.setViewport({
-      width: 1440,
-      height: 900,
-      devicePixelRatio: 1,
-    });
-    const image = stageFixture('synthetic-oct.dcm');
-    const mask = stageIllustrativeMask(makeTempDir(STEM));
-    await volViewPage.open();
-    await openThroughDialog(path.join(TEMP_DIR, image));
-    await volViewPage.waitForViews();
-    const spacing = await waitForFirstCachedImageSpacing();
+  test('builds stacked enface views with the layout grid after file import and attaches a segmentation through the Data panel', async ({
+    page,
+    volview,
+    utils,
+    scratch,
+    oct,
+    octInteraction,
+    imageCache,
+    segmentation,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const image = octInteraction.stageFixture('synthetic-oct.dcm');
+    const mask = stageIllustrativeMask(utils.makeTempDir(STEM));
+    await volview.open();
+    await utils.openThroughDialog(scratch.path(image));
+    await volview.waitForViews();
+    const spacing = await imageCache.waitForFirstCachedImageSpacing();
     spacing.forEach((value, axis) =>
       expect(value).toBeCloseTo(reference.spacing[axis], 6)
     );
-    expect(await $(CANVAS).isExisting()).toBe(false);
+    expect(await page.locator(CANVAS).count()).toBe(0);
 
-    await volViewPage.openLayoutMenu();
-    expect(await volViewPage.getLayoutOptionTitles()).not.toContain(
-      'Retinal OCT'
-    );
-    await browser.keys('Escape');
-    await selectTwoRowLayout();
-    await volViewPage.waitForViewCounts(2, false);
-    await selectEnFace(1);
-    await waitForEnFaceReady();
-    expect((await volViewPage.getViews2D()).length).toBe(1);
-    await expectSliceLine();
+    await volview.openLayoutMenu();
+    expect(await volview.getLayoutOptionTitles()).not.toContain('Retinal OCT');
+    await page.keyboard.press('Escape');
+    await oct.selectTwoRowLayout();
+    await volview.waitForViewCounts(2, false);
+    await oct.selectEnFace(1);
+    await oct.waitForEnFaceReady();
+    await expect(volview.views2D).toHaveCount(1);
+    await octInteraction.expectSliceLine();
 
-    await attachMaskThroughDataPanel(STEM + '/' + mask);
-    await openAnnotationSegments();
-    await waitForSegmentContent('Synthetic retinal layer');
-    await selectSegment('Synthetic retinal layer');
-    await expectStackedMaskWithoutSidebar();
+    await oct.attachMaskThroughDataPanel(STEM + '/' + mask);
+    await segmentation.openAnnotationSegments();
+    await segmentation.waitForSegmentContent('Synthetic retinal layer');
+    await segmentation.selectSegment('Synthetic retinal layer');
+    await octInteraction.expectStackedMaskWithoutSidebar();
 
-    await openEnFaceControls();
-    await setSegmentThreshold('Synthetic retinal layer', 31);
-    await expectHighlight(true);
-    await expectControlsBesideSelector();
-    await browser.keys('Escape');
-    await dragEnFaceContrast();
-    const retainedWindow = await getWindow();
-    const retainedSlice = await volViewPage.getFirst2DSlice();
-    await selectTwoRowLayout();
-    await expectHighlight(true);
-    expect(await getWindow()).toEqual(retainedWindow);
-    expect(await volViewPage.getFirst2DSlice()).toBe(retainedSlice);
-    await expectSliceLine();
-    await openEnFaceControls();
-    await expandEnFaceSection('segments');
-    await expect(segmentEye('Synthetic retinal layer')).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    );
-    await expect(segmentThreshold('Synthetic retinal layer')).toHaveValue('31');
-    await browser.keys('Escape');
-    await volViewPage.focusFirst2DView();
-    const before = await volViewPage.getFirst2DSlice();
-    if (before === null)
+    await oct.openEnFaceControls();
+    await oct.setSegmentThreshold('Synthetic retinal layer', 31);
+    await oct.expectHighlight(true);
+    await oct.expectControlsBesideSelector();
+    await page.keyboard.press('Escape');
+    await octInteraction.dragEnFaceContrast();
+    const retainedWindow = await oct.getEnFaceWindow();
+    const retainedSlice = await volview.getFirst2DSlice();
+    await oct.selectTwoRowLayout();
+    await oct.expectHighlight(true);
+    expect(await oct.getEnFaceWindow()).toEqual(retainedWindow);
+    expect(await volview.getFirst2DSlice()).toBe(retainedSlice);
+    await octInteraction.expectSliceLine();
+    await oct.expectEnFaceSegmentShown('Synthetic retinal layer', '31');
+    await volview.focusFirst2DView();
+    const before = await volview.getFirst2DSlice();
+    if (before === undefined)
       throw new Error('The original OCT has no slice position');
-    await volViewPage.advanceSliceAndWait();
-    expect(await volViewPage.getFirst2DSlice()).toBeLessThan(before);
-    await expectSliceLine();
-    await browser.keys('ArrowUp');
-    await browser.waitUntil(
-      async () => (await volViewPage.getFirst2DSlice()) === before
-    );
-    await expectSliceLine();
+    await volview.advanceSliceAndWait();
+    expect(await volview.getFirst2DSlice()).toBeLessThan(before);
+    await octInteraction.expectSliceLine();
+    await page.keyboard.press('ArrowUp');
+    await expect.poll(volview.getFirst2DSlice).toBe(before);
+    await octInteraction.expectSliceLine();
 
-    const saved = await volViewPage.saveSession();
-    await waitForDownload(path.join(TEMP_DIR, saved), SESSION_SAVE_TIMEOUT);
+    const saved = await volview.saveSession();
     const captureDirectory = process.env.VOLVIEW_OCT_CAPTURE_DIR;
     if (captureDirectory) {
       fs.mkdirSync(captureDirectory, { recursive: true });
       fs.copyFileSync(
-        path.join(TEMP_DIR, saved),
+        scratch.path(saved),
         path.join(captureDirectory, 'oct-production-saved-session.volview.zip')
       );
     }
-    await volViewPage.open('?urls=[tmp/' + saved + ']');
-    await volViewPage.waitForViews();
-    await $(CANVAS).waitForDisplayed();
-    await expectHighlight(true);
-    await expectSliceLine();
-    await expectStackedMaskWithoutSidebar();
-    await volViewPage.waitForViewCounts(1, false);
-    expect(await volViewPage.getNotificationsCount()).toBe(0);
+    await volview.open('?urls=[tmp/' + saved + ']');
+    await volview.waitForViews();
+    await expect(page.locator(CANVAS).first()).toBeVisible();
+    await oct.expectHighlight(true);
+    await octInteraction.expectSliceLine();
+    await octInteraction.expectStackedMaskWithoutSidebar();
+    await volview.waitForViewCounts(1, false);
+    expect(await volview.getNotificationsCount()).toBe(0);
   });
 
   for (const format of ['nrrd', 'nii', 'vti'] as const) {
-    it(
+    test(
       'manually projects generated OCT pixels from ' +
         format +
         ' with an explicit axis and restores its settings',
-      async () => {
-        const directory = makeTempDir(STEM);
+      async ({
+        page,
+        volview,
+        utils,
+        scratch,
+        oct,
+        octInteraction,
+        imageCache,
+      }) => {
+        const directory = utils.makeTempDir(STEM);
         const name = stageGenericOCT(directory, format);
         const projectionAxis = format === 'vti' ? 'Axial' : 'Coronal';
-        await volViewPage.open();
-        await openThroughDialog(path.join(directory, name));
-        await volViewPage.waitForViews();
-        expect(await $(CANVAS).isExisting()).toBe(false);
-        const viewCount = (await $$('.view-type-select')).length;
-        const spacing = await waitForFirstCachedImageSpacing();
+        await volview.open();
+        await utils.openThroughDialog(path.join(directory, name));
+        await volview.waitForViews();
+        expect(await page.locator(CANVAS).count()).toBe(0);
+        const viewCount = await page.locator('.view-type-select').count();
+        const spacing = await imageCache.waitForFirstCachedImageSpacing();
         expect(Math.abs(spacing[0])).toBeCloseTo(reference.spacing[0], 6);
         expect(spacing[1]).toBeCloseTo(reference.spacing[2], 6);
         expect(spacing[2]).toBeCloseTo(reference.spacing[1], 6);
         if (format === 'vti') expect(spacing[0]).toBeLessThan(0);
-        await selectEnFace();
-        await waitForEnFaceReady();
-        expect((await $$('.view-type-select')).length).toBe(viewCount);
-        await openEnFaceControls();
+        await oct.selectEnFace();
+        await oct.waitForEnFaceReady();
+        await expect(page.locator('.view-type-select')).toHaveCount(viewCount);
+        await oct.openEnFaceControls();
         expect(
-          await $(
-            '.v-overlay--active [data-testid="enface-projection-toggle"]'
-          ).getAttribute('aria-expanded')
+          await page
+            .locator(
+              '.v-overlay--active [data-testid="enface-projection-toggle"]'
+            )
+            .getAttribute('aria-expanded')
         ).toBe('true');
-        await expandEnFaceSection();
-        await selectSetting('enface-projection-axis', projectionAxis);
-        await waitForEnFaceReady();
-        const display = await $(CANVAS).getSize();
-        expect(display.width).toBeGreaterThan(0);
-        expect(display.height).toBeGreaterThan(0);
-        await setSlabRange(reference.slab.start, reference.slab.end);
-        await waitForEnFaceReady();
-        await browser.keys('Escape');
-        await setEnFaceWindow(1000, 500);
+        await oct.expandEnFaceSection();
+        await oct.selectSetting('enface-projection-axis', projectionAxis);
+        await oct.waitForEnFaceReady();
+        const display = await page.locator(CANVAS).first().boundingBox();
+        expect(display?.width).toBeGreaterThan(0);
+        expect(display?.height).toBeGreaterThan(0);
+        await oct.setSlabRange(reference.slab.start, reference.slab.end);
+        await oct.waitForEnFaceReady();
+        await page.keyboard.press('Escape');
+        await oct.setEnFaceWindow(1000, 500);
         // Each container retains the same transposed source voxels.
-        await expectProjectionPixel(76);
-        const saved = await volViewPage.saveSession();
-        await waitForDownload(path.join(TEMP_DIR, saved), SESSION_SAVE_TIMEOUT);
-        await volViewPage.open();
-        await openThroughDialog(path.join(TEMP_DIR, saved));
-        await volViewPage.waitForViews();
-        await $(CANVAS).waitForDisplayed();
-        await waitForEnFaceReady();
-        await openEnFaceProjection();
+        await octInteraction.expectProjectionPixel(76);
+        const saved = await volview.saveSession();
+        await volview.open();
+        await utils.openThroughDialog(scratch.path(saved));
+        await volview.waitForViews();
+        await expect(page.locator(CANVAS).first()).toBeVisible();
+        await oct.waitForEnFaceReady();
+        await oct.openEnFaceProjection();
         expect(
-          await $(
-            '.v-overlay--active [data-testid="enface-projection-axis"] input'
-          ).getValue()
+          await page
+            .locator(
+              '.v-overlay--active [data-testid="enface-projection-axis"] input'
+            )
+            .inputValue()
         ).toBe(projectionAxis);
-        await expect(slabThumb('start')).toHaveAttribute(
+        await expect(oct.slabThumb('start')).toHaveAttribute(
           'aria-valuenow',
           String(reference.slab.start)
         );
-        await expect(slabThumb('end')).toHaveAttribute(
+        await expect(oct.slabThumb('end')).toHaveAttribute(
           'aria-valuenow',
           String(reference.slab.end)
         );
-        await browser.keys('Escape');
-        await expectProjectionPixel(76);
+        await page.keyboard.press('Escape');
+        await octInteraction.expectProjectionPixel(76);
       }
     );
   }

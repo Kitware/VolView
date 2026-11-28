@@ -1,83 +1,89 @@
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import JSZip from 'jszip';
-import { TEMP_DIR } from '../../wdio.shared.conf';
-import { volViewPage } from '../pageobjects/volview.page';
+import { test, expect } from '../fixtures';
+import type { VolViewPage } from '../pageobjects/volview.page';
 import { writeConfigImages } from './configurationImage';
-import {
-  addSegment,
-  openAnnotationSegments,
-  segmentColor,
-  segmentNames,
-  waitForNamedSegments,
-  waitForSegmentContent,
-  segmentImageName,
-} from './segmentationTestUtils';
-import {
-  openThroughDialog,
-  writeManifestToFile,
-  waitForDownload,
-  SESSION_SAVE_TIMEOUT,
-} from './utils';
+import type { SegmentationUtils } from './segmentationTestUtils';
+import type { Utils } from './utils';
 
-const openConfigured = async (config: unknown) => {
+const openConfigured = async (
+  {
+    volview,
+    utils,
+    segmentation,
+  }: { volview: VolViewPage; utils: Utils; segmentation: SegmentationUtils },
+  config: unknown
+) => {
   const stem = 'segmentation-config-case';
   writeConfigImages(stem);
-  await writeManifestToFile(config, `${stem}.json`);
-  await volViewPage.open(
+  await utils.writeManifestToFile(config, `${stem}.json`);
+  await volview.open(
     `?urls=[tmp/${stem}.json,tmp/${stem}.nrrd,tmp/${stem}.seg.nrrd]`
   );
-  await volViewPage.waitForViews();
-  await openAnnotationSegments();
-  await waitForSegmentContent('Matched mask');
+  await volview.waitForViews();
+  await segmentation.openAnnotationSegments();
+  await segmentation.waitForSegmentContent('Matched mask');
 };
 
 const labels = { rulerLabels: { Configured: { color: '#ff0000' } } };
 
-describe('Segmentation configuration migration', () => {
-  it('continues automatic colors when adding and extending a configuration', async () => {
+test.describe('Segmentation configuration migration', () => {
+  test('continues automatic colors when adding and extending a configuration', async ({
+    volview,
+    utils,
+    segmentation,
+  }) => {
     const stem = 'segmentation-config-colors';
     writeConfigImages(stem);
-    await volViewPage.open(`?urls=[tmp/${stem}.nrrd]`);
-    await volViewPage.waitForViews();
-    await openAnnotationSegments();
-    await expect(segmentImageName()).toHaveText(`${stem}.nrrd`);
-    await addSegment();
-    await addSegment();
+    await volview.open(`?urls=[tmp/${stem}.nrrd]`);
+    await volview.waitForViews();
+    await segmentation.openAnnotationSegments();
+    await expect(segmentation.segmentImageName()).toHaveText(`${stem}.nrrd`);
+    await segmentation.addSegment();
+    await segmentation.addSegment();
     const colors = [
-      await segmentColor('Segment 1'),
-      await segmentColor('Segment 2'),
+      await segmentation.segmentColor('Segment 1'),
+      await segmentation.segmentColor('Segment 2'),
     ];
-    const configPath = await writeManifestToFile(
+    const configPath = await utils.writeManifestToFile(
       { segments: { Tumor: {}, Liver: {} } },
       `${stem}.json`
     );
-    await openThroughDialog(configPath);
-    colors.push(await segmentColor('Tumor'), await segmentColor('Liver'));
+    await utils.openThroughDialog(configPath);
+    colors.push(
+      await segmentation.segmentColor('Tumor'),
+      await segmentation.segmentColor('Liver')
+    );
     expect(new Set(colors).size).toBe(4);
 
-    const extendedPath = await writeManifestToFile(
+    const extendedPath = await utils.writeManifestToFile(
       { segments: { Node: {}, Tumor: {}, Liver: {} } },
       `${stem}-extended.json`
     );
-    await openThroughDialog(extendedPath);
-    expect(colors).not.toContain(await segmentColor('Node'));
-    expect(await segmentColor('Tumor')).toBe(colors[2]);
-    expect(await segmentColor('Liver')).toBe(colors[3]);
+    await utils.openThroughDialog(extendedPath);
+    expect(colors).not.toContain(await segmentation.segmentColor('Node'));
+    expect(await segmentation.segmentColor('Tumor')).toBe(colors[2]);
+    expect(await segmentation.segmentColor('Liver')).toBe(colors[3]);
   });
 
   for (const key of ['segmentationSaveFormat', 'segmentGroupSaveFormat']) {
-    it(`saves session masks as ${key} specifies and migrates label configuration`, async () => {
-      await openConfigured({
-        io: { [key]: 'mha', segmentationExtension: 'seg' },
-        labels,
-      });
-      await waitForNamedSegments();
-      expect(await segmentNames()).toContain('Configured');
-      const filename = await volViewPage.saveSession();
-      const path = join(TEMP_DIR, filename);
-      await waitForDownload(path, SESSION_SAVE_TIMEOUT);
-      const zip = await JSZip.loadAsync(readFileSync(path));
+    test(`saves session masks as ${key} specifies and migrates label configuration`, async ({
+      scratch,
+      volview,
+      utils,
+      segmentation,
+    }) => {
+      await openConfigured(
+        { volview, utils, segmentation },
+        {
+          io: { [key]: 'mha', segmentationExtension: 'seg' },
+          labels,
+        }
+      );
+      await segmentation.waitForNamedSegments();
+      expect(await segmentation.segmentNames()).toContain('Configured');
+      const filename = await volview.saveSession();
+      const zip = await JSZip.loadAsync(readFileSync(scratch.path(filename)));
       const masks = Object.keys(zip.files).filter(
         (name) => name.startsWith('segmentations/') && !zip.files[name].dir
       );
@@ -86,13 +92,20 @@ describe('Segmentation configuration migration', () => {
     });
   }
 
-  it('uses canonical segments when legacy labels are also supplied', async () => {
-    await openConfigured({
-      io: { segmentationExtension: 'seg' },
-      labels,
-      segments: { Canonical: { color: '#00ff00' } },
-    });
-    const names = await segmentNames();
+  test('uses canonical segments when legacy labels are also supplied', async ({
+    volview,
+    utils,
+    segmentation,
+  }) => {
+    await openConfigured(
+      { volview, utils, segmentation },
+      {
+        io: { segmentationExtension: 'seg' },
+        labels,
+        segments: { Canonical: { color: '#00ff00' } },
+      }
+    );
+    const names = await segmentation.segmentNames();
     expect(names).toContain('Canonical');
     expect(names).not.toContain('Configured');
   });

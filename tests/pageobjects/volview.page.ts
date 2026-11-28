@@ -1,454 +1,346 @@
-import * as path from 'path';
-import * as fs from 'fs';
-import { Key, type ChainablePromiseElement } from 'webdriverio';
-import { cleanuptotal } from 'wdio-cleanuptotal-service';
-import { DOWNLOAD_TIMEOUT, TEMP_DIR } from '../../wdio.shared.conf';
-import Page from './page';
+import * as path from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
+import { expect, type Locator, type Page } from '@playwright/test';
+import { createSaveDownload, type Scratch } from '../scratch';
 
-let lastId = 0;
-const getId = () => {
-  return `${process.pid}-${Date.now()}-${lastId++}`;
-};
+/** `stylePath` for a visual check that leaves out the view overlays. */
+export const HIDE_VIEW_ANNOTATIONS = fileURLToPath(
+  new URL('./hideViewAnnotations.css', import.meta.url)
+);
 
-export const setValueVueInput = async (
-  input: ChainablePromiseElement,
-  value: string
-) => {
-  // input.setValue does not clear existing input, so select all and replace.
-  await input.click();
-  const oldValue = await input.getValue();
-  if (oldValue) {
-    const selectAllModifier =
-      process.platform === 'darwin' ? 'Meta' : 'Control';
-    await browser.keys([selectAllModifier, 'a']);
-    await browser.keys(Key.Backspace);
-  }
-  await input.setValue(value);
-};
+const escapeRegExp = (text: string) =>
+  text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-class VolViewPage extends Page {
-  get samplesList() {
-    return $('div[data-testid="samples-list"]');
-  }
+/** Whole text equal to `text`, as WebdriverIO's `selector=text` matched. */
+export const exactText = (text: string) =>
+  new RegExp(`^\\s*${escapeRegExp(text)}\\s*$`);
 
-  get prostateSample() {
-    return this.samplesList.$('div[title="MRI PROSTATEx"]');
-  }
+/** Case-sensitive substring, as WebdriverIO's `selector*=text` matched. */
+export const containsText = (text: string) => new RegExp(escapeRegExp(text));
 
-  async downloadProstateSample() {
-    const sample = await this.prostateSample;
-    await sample.click();
-  }
+const VIEWS_2D =
+  'div[data-testid~="vtk-two-view"], div[data-testid~="vtk-cine-view"]';
+const VIEW_3D = 'div[data-testid="vtk-view vtk-volume-view"]';
+const TRANSITIONING = '[class*="-enter-active"], [class*="-leave-active"]';
 
-  get views() {
-    return $$('div[data-testid~="vtk-view"] canvas');
-  }
-
-  get layoutButton() {
-    return $('button[data-testid="control-button-Layouts"]');
-  }
-
-  async waitForViews(timeout = DOWNLOAD_TIMEOUT) {
-    await browser.waitUntil(
-      async () => {
-        return browser.execute(() => {
-          const canvases = document.querySelectorAll(
-            'div[data-testid~="vtk-view"] canvas'
-          );
-          // A canvas carries its default 300x300 attributes before it is
-          // laid out, so its box on the page has to have a size as well.
-          return Array.from(canvases).some((c) => {
-            const canvas = c as HTMLCanvasElement;
-            const box = canvas.getBoundingClientRect();
+/**
+ * Waits until no Vue transition or finite animation moves `locator`, whether it
+ * runs on the element, inside it, or on an ancestor sliding it in.
+ */
+export const waitForTransitions = (locator: Locator, message?: string) =>
+  expect
+    .poll(
+      () =>
+        locator.evaluate((element, selector) => {
+          if (element.closest(selector) || element.querySelector(selector))
+            return true;
+          return document.getAnimations().some((animation) => {
+            const target = (animation.effect as KeyframeEffect | null)?.target;
             return (
-              canvas.width > 10 &&
-              canvas.height > 10 &&
-              box.width > 10 &&
-              box.height > 10
+              animation.playState === 'running' &&
+              Number.isFinite(animation.effect?.getComputedTiming().endTime) &&
+              !!target &&
+              (target.contains(element) || element.contains(target))
             );
           });
-        });
-      },
-      {
-        timeout,
-        timeoutMsg: `expected at least 1 view to be rendered with real dimensions (timeout: ${timeout}ms)`,
-      }
-    );
-  }
+        }, TRANSITIONING),
+      { message: message ?? 'Expected the element to finish moving' }
+    )
+    .toBe(false);
 
-  get notifications() {
-    return $('#notifications');
-  }
+/**
+ * WebdriverIO's `toBeDisplayed`: rendered and not transparent, whatever its
+ * size. `toBeVisible` rejects a zero-height box such as a horizontal SVG line.
+ */
+export const expectDisplayed = async (locator: Locator, message?: string) => {
+  await expect(locator, message).toBeAttached();
+  await expect
+    .poll(
+      () =>
+        locator.evaluate((element) =>
+          element.checkVisibility({
+            opacityProperty: true,
+            visibilityProperty: true,
+          })
+        ),
+      { message: message ?? 'Expected the element to be displayed' }
+    )
+    .toBe(true);
+};
 
-  async getNotificationsCount() {
-    const badge = this.notifications.$('span[aria-label="Badge"]');
-    const innerText = await badge.getText();
-    if (innerText === '') return 0;
-    return parseInt(innerText, 10);
+// Vue inputs ignore a programmatic clear, so select all and type over it.
+export const setValueVueInput = async (input: Locator, value: string) => {
+  await input.click();
+  if (await input.inputValue()) {
+    await input.page().keyboard.press('ControlOrMeta+a');
+    await input.page().keyboard.press('Backspace');
   }
+  await input.pressSequentially(value);
+};
 
-  async waitForNotification() {
-    await browser.waitUntil(
-      async () => {
-        const notificationCount = await this.getNotificationsCount();
-        return notificationCount >= 1;
-      },
-      {
-        timeout: DOWNLOAD_TIMEOUT,
-        timeoutMsg: `expected notification badge to display`,
-      }
-    );
-  }
+// Steps a focused slider with one held key. A press per step would wait on the
+// page between steps.
+export const holdKey = async (page: Page, key: string, repeats: number) => {
+  if (repeats === 0) return;
+  await Promise.all(
+    Array.from({ length: repeats }, () => page.keyboard.down(key))
+  );
+  await page.keyboard.up(key);
+};
 
-  async getNotificationTitles() {
-    await this.notifications.click();
-    const titles = $$(
+export const createVolViewPage = (page: Page, scratch: Scratch) => {
+  const saveDownload = createSaveDownload(page, scratch);
+  const samplesList = page.locator('div[data-testid="samples-list"]');
+  const prostateSample = samplesList.locator('div[title="MRI PROSTATEx"]');
+  const layoutButton = page.locator(
+    'button[data-testid="control-button-Layouts"]'
+  );
+  const notifications = page.locator('#notifications');
+  const views2D = page.locator(VIEWS_2D);
+  const processPreviewButton = page.locator('button', {
+    hasText: containsText('Preview'),
+  });
+  const processApplyButton = page.locator('button', {
+    hasText: containsText('Apply'),
+  });
+  const processModeButton = page
+    .locator('button', { hasText: containsText('Process') })
+    .first();
+  const processTypeSelector = page.locator(
+    '[data-testid="process-type-selector"]'
+  );
+  const fillHolesProcessOption = page.locator(
+    '[data-testid="process-type-fillHoles"]'
+  );
+  const saveButton = page.locator('button span i[class~=mdi-content-save-all]');
+  const saveSessionFilenameInput = page.locator('#session-state-filename');
+  const saveSessionConfirmButton = page.locator(
+    'span[data-testid="save-session-confirm-button"]'
+  );
+  const saveSegmentsButtons = page.locator(
+    'button[data-testid="save-segments-button"]'
+  );
+  const activeDialog = page.locator('div[role="dialog"]').first();
+  const settingsDialog = page.locator(
+    '.v-dialog.v-overlay--active .closeable-dialog'
+  );
+
+  const open = (url = '/') => page.goto(url);
+
+  const waitForViews = (expectation = expect) =>
+    expectation
+      .poll(
+        () =>
+          page.evaluate(() =>
+            Array.from(
+              document.querySelectorAll('div[data-testid~="vtk-view"] canvas')
+            ).some((c) => {
+              // A canvas carries its default 300x300 attributes before it is
+              // laid out, so its box on the page has to have a size as well.
+              const canvas = c as HTMLCanvasElement;
+              const box = canvas.getBoundingClientRect();
+              return (
+                canvas.width > 10 &&
+                canvas.height > 10 &&
+                box.width > 10 &&
+                box.height > 10
+              );
+            })
+          ),
+        {
+          message:
+            'expected at least 1 view to be rendered with real dimensions',
+        }
+      )
+      .toBe(true);
+
+  const getNotificationsCount = async () => {
+    const text = await notifications
+      .locator('span[aria-label="Badge"]')
+      .innerText();
+    return text === '' ? 0 : parseInt(text, 10);
+  };
+
+  const waitForNotification = () =>
+    expect
+      .poll(getNotificationsCount, {
+        message: 'expected notification badge to display',
+      })
+      .toBeGreaterThanOrEqual(1);
+
+  const getNotificationTitles = async () => {
+    await notifications.click();
+    const titles = page.locator(
       '.message-center .v-expansion-panel-title .header > span'
     );
-    await titles[0].waitForDisplayed();
-    return titles.map((title) => title.getText());
-  }
+    await expect(titles.first()).toBeVisible();
+    return titles.allInnerTexts();
+  };
 
-  async selectTool(icon: string) {
-    const button = $(`button.tool-btn i[class~=${icon}]`);
-    await button.waitForClickable();
-    await button.click();
-  }
+  const selectTool = (icon: string) =>
+    page.locator(`button.tool-btn i[class~=${icon}]`).click();
 
-  async activateRectangle() {
-    await this.selectTool('mdi-vector-square');
-  }
+  const selectFillHolesProcess = async () => {
+    await processTypeSelector.click();
+    await fillHolesProcessOption.click();
+  };
 
-  async activatePaint() {
-    await this.selectTool('mdi-brush');
-  }
-
-  // Paint "Process" mode and the Fill Holes process workflow.
-  get processModeButton() {
-    return $('button*=Process');
-  }
-
-  get processTypeSelector() {
-    return $('[data-testid="process-type-selector"]');
-  }
-
-  get fillHolesProcessOption() {
-    return $('[data-testid="process-type-fillHoles"]');
-  }
-
-  get fillHolesWholeVolumeButton() {
-    return $('button*=All slices');
-  }
-
-  get fillHolesSelectedSegmentButton() {
-    return $('button*=Selected segment');
-  }
-
-  get processPreviewButton() {
-    return $('button*=Preview');
-  }
-
-  get processApplyButton() {
-    return $('button*=Apply');
-  }
-
-  get processOriginalButton() {
-    return $('button*=Original');
-  }
-
-  get processProcessedButton() {
-    return $('button*=Processed');
-  }
-
-  // The selected button in a Vuetify v-btn-toggle carries v-btn--active.
-  async isPreviewToggleActive(button: ChainablePromiseElement) {
-    const classes = await button.getAttribute('class');
-    return (classes ?? '').includes('v-btn--active');
-  }
-
-  /** A square loop starting `offsetX` pixels right of the view's center. */
-  async paintStrokeOnView(view: ChainablePromiseElement, offsetX = 0) {
-    const canvas = await view.$('canvas');
-    const location = await canvas.getLocation();
-    const size = await canvas.getSize();
-    const centerX = Math.round(location.x + size.width / 2) + offsetX;
-    const centerY = Math.round(location.y + size.height / 2);
-
-    await browser
-      .action('pointer')
-      .move({ x: centerX, y: centerY })
-      .down()
-      .move({ x: centerX + 40, y: centerY })
-      .move({ x: centerX + 40, y: centerY + 40 })
-      .move({ x: centerX, y: centerY + 40 })
-      .move({ x: centerX, y: centerY })
-      .up()
-      .perform();
-  }
-
-  async runFillHoles() {
-    await this.processModeButton.waitForClickable();
-    await this.processModeButton.click();
-
-    await this.selectFillHolesProcess();
-
-    const preview = this.processPreviewButton;
-    await preview.waitForClickable();
-    await preview.click();
-
+  const runFillHoles = async () => {
+    await processModeButton.click();
+    await selectFillHolesProcess();
+    await processPreviewButton.click();
     // Reaching the "previewing" state (Apply appears) only happens after the
     // algorithm runs successfully on the label map.
-    const apply = this.processApplyButton;
-    await apply.waitForDisplayed();
-    await apply.waitForClickable();
-    await apply.click();
-
+    await processApplyButton.click();
     // Applying returns the workflow to its start state (Preview reappears).
-    await this.processPreviewButton.waitForDisplayed();
-  }
+    await expect(processPreviewButton).toBeVisible();
+  };
 
-  async selectFillHolesProcess() {
-    await this.processTypeSelector.waitForClickable();
-    await this.processTypeSelector.click();
+  /** A square loop starting `offsetX` pixels right of the view's center. */
+  const paintStrokeOnView = async (view: Locator, offsetX = 0) => {
+    const box = await view.locator('canvas').boundingBox();
+    if (!box) throw new Error('The view has no canvas on screen');
+    const centerX = Math.round(box.x + box.width / 2) + offsetX;
+    const centerY = Math.round(box.y + box.height / 2);
+    await page.mouse.move(centerX, centerY);
+    await page.mouse.down();
+    await page.mouse.move(centerX + 40, centerY);
+    await page.mouse.move(centerX + 40, centerY + 40);
+    await page.mouse.move(centerX, centerY + 40);
+    await page.mouse.move(centerX, centerY);
+    await page.mouse.up();
+  };
 
-    const fillHoles = this.fillHolesProcessOption;
-    await fillHoles.waitForClickable();
-    await fillHoles.click();
-  }
+  const clickSaveSegmentsButton = async () => {
+    await expect(saveSegmentsButtons.first()).toBeAttached();
+    await saveSegmentsButtons.first().click();
+  };
 
-  get viewTwoContainer() {
-    return $('div[data-testid~="two-view-container"]');
-  }
-
-  get saveButton() {
-    return $('button span i[class~=mdi-content-save-all]');
-  }
-
-  get annotationsModuleTab() {
-    return $('button[data-testid="module-tab-Annotations"]');
-  }
-
-  get activeDialog() {
-    return $('div[role="dialog"]');
-  }
-
-  get saveSessionFilenameInput() {
-    return $('#session-state-filename');
-  }
-
-  get saveSessionConfirmButton() {
-    return $('span[data-testid="save-session-confirm-button"]');
-  }
-
-  get saveSegmentsButtons() {
-    return $$('button[data-testid="save-segments-button"]');
-  }
-
-  get segmentList() {
-    return $('[data-testid="segment-list"]');
-  }
-
-  get saveSegmentsFilenameInput() {
-    return this.activeDialog.$('#filename');
-  }
-
-  get saveSegmentsConfirmButton() {
-    return this.activeDialog.$('button=Save');
-  }
-
-  async clickSaveSegmentsButton() {
-    await browser.waitUntil(async () => {
-      const buttons = await this.saveSegmentsButtons;
-      return (await buttons.length) >= 1;
-    });
-    const buttons = await this.saveSegmentsButtons;
-    await buttons[0].scrollIntoView();
-    await buttons[0].waitForClickable();
-    await buttons[0].click();
-  }
-
-  async saveSession() {
-    const save = this.saveButton;
-    await save.click();
-
-    const input = this.saveSessionFilenameInput;
-    const id = getId();
-    const fileName = `${id}-session.volview.zip`;
-
-    await setValueVueInput(input, fileName);
-
-    const confirm = this.saveSessionConfirmButton;
-    await confirm.click();
-
-    cleanuptotal.addCleanup(async () => {
-      const filePath = path.join(TEMP_DIR, fileName);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
-    });
-
-    return fileName;
-  }
-
-  get segmentStrokeWidthSlider() {
-    return $('[role="slider"][aria-label="Stroke Width"]');
-  }
-
-  get editLabelModalDoneButton() {
-    return $('button[data-testid="segment-editor-done-button"]');
-  }
-
-  get datasetMenuButtons() {
-    return $$('button[data-testid="dataset-menu-button"]');
-  }
-
-  get renderingModuleTab() {
-    return $('button[data-testid="module-tab-Rendering"]');
-  }
-
-  get layerOpacitySliders() {
-    return $$('div[data-testid="layer-opacity-slider"]');
-  }
-
-  async getVolumeRenderingSection() {
-    const pwfEditor = await $('div.pwf-editor');
-    const exists = await pwfEditor.isExisting();
-    return exists ? pwfEditor : null;
-  }
-
-  async getView3D() {
-    const view3D = $('div[data-testid="vtk-view vtk-volume-view"]');
-    const exists = await view3D.isExisting();
-    return exists ? view3D : null;
-  }
-
-  async getView2D() {
-    const view2D = $(
-      'div[data-testid~="vtk-two-view"], div[data-testid~="vtk-cine-view"]'
+  /** Saves a session under TEMP_DIR and returns its file name. */
+  const saveSession = async () => {
+    await saveButton.click();
+    await setValueVueInput(
+      saveSessionFilenameInput,
+      `${randomUUID()}-session.volview.zip`
     );
-    const exists = await view2D.isExisting();
-    return exists ? view2D : null;
-  }
+    const filePath = await saveDownload(() => saveSessionConfirmButton.click());
+    return path.basename(filePath);
+  };
 
-  async getViews2D() {
-    const views2D = $$(
-      'div[data-testid~="vtk-two-view"], div[data-testid~="vtk-cine-view"]'
-    );
-    return views2D;
-  }
+  const getVolumeRenderingSection = async () => {
+    const pwfEditor = page.locator('div.pwf-editor');
+    return (await pwfEditor.count()) ? pwfEditor : undefined;
+  };
 
-  async waitForViewCounts(
+  const getView3D = async () => {
+    const view3D = page.locator(VIEW_3D);
+    return (await view3D.count()) ? view3D : undefined;
+  };
+
+  const getView2D = async () => {
+    const view2D = views2D.first();
+    return (await view2D.count()) ? view2D : undefined;
+  };
+
+  const waitForViewCounts = (
     expected2DCount: number,
-    expected3DExists: boolean,
-    timeout = DOWNLOAD_TIMEOUT
-  ) {
-    await browser.waitUntil(
-      async () => {
-        const counts = await browser.execute(() => ({
-          view2DCount: document.querySelectorAll(
-            'div[data-testid~="vtk-two-view"], div[data-testid~="vtk-cine-view"]'
-          ).length,
-          view3DExists:
-            document.querySelector(
-              'div[data-testid="vtk-view vtk-volume-view"]'
-            ) !== null,
-        }));
-        return (
-          counts.view2DCount === expected2DCount &&
-          counts.view3DExists === expected3DExists
-        );
-      },
-      {
-        timeout,
-        timeoutMsg: `Expected ${expected2DCount} 2D views and ${
-          expected3DExists ? 'a' : 'no'
-        } 3D view`,
-      }
-    );
-  }
+    expected3DExists: boolean
+  ) =>
+    expect
+      .poll(
+        () =>
+          page.evaluate(
+            ([views2DSelector, view3DSelector]) => ({
+              view2DCount: document.querySelectorAll(views2DSelector).length,
+              view3DExists: document.querySelector(view3DSelector) !== null,
+            }),
+            [VIEWS_2D, VIEW_3D]
+          ),
+        {
+          message: `Expected ${expected2DCount} 2D views and ${
+            expected3DExists ? 'a' : 'no'
+          } 3D view`,
+        }
+      )
+      .toEqual({
+        view2DCount: expected2DCount,
+        view3DExists: expected3DExists,
+      });
 
-  async openMenu(activator: ChainablePromiseElement) {
-    await activator.waitForDisplayed();
-    if ((await activator.getAttribute('aria-expanded')) !== 'true') {
-      await activator.waitForClickable();
+  const menuContent = (contentId: string) =>
+    page.locator(`[id="${contentId}"] > .v-overlay__content`);
+
+  const openMenu = async (activator: Locator) => {
+    await expect(activator).toBeVisible();
+    if ((await activator.getAttribute('aria-expanded')) !== 'true')
       await activator.click();
-    }
     await expect(activator).toHaveAttribute('aria-expanded', 'true');
     const contentId = await activator.getAttribute('aria-controls');
     if (!contentId) throw new Error('Menu activator has no linked content');
-    const content = $(`[id="${contentId}"] > .v-overlay__content`);
-    await content.waitForDisplayed();
-    await content.waitForStable();
-    return content.getElement();
-  }
+    const content = menuContent(contentId);
+    await expect(content).toBeVisible();
+    await waitForTransitions(content);
+    return content;
+  };
 
-  async closeMenu(activator: ChainablePromiseElement) {
+  const closeMenu = async (activator: Locator) => {
     const contentId = await activator.getAttribute('aria-controls');
     if ((await activator.getAttribute('aria-expanded')) === 'true') {
       // Wait for the opening transition before Escape can dismiss the popup.
       if (contentId) {
-        const content = $(`[id="${contentId}"] > .v-overlay__content`);
-        await content.waitForDisplayed();
-        await content.waitForStable();
+        await expect(menuContent(contentId)).toBeVisible();
+        await waitForTransitions(menuContent(contentId));
       }
       // A tall popup can cover its activator in a compact pane.
-      await browser.keys(Key.Escape);
+      await page.keyboard.press('Escape');
     }
     await expect(activator).toHaveAttribute('aria-expanded', 'false');
-    if (contentId)
-      await $(`[id="${contentId}"] > .v-overlay__content`).waitForDisplayed({
-        reverse: true,
-      });
-  }
+    if (contentId) await expect(menuContent(contentId)).toBeHidden();
+  };
 
-  async openSettings() {
-    const selector = '.v-dialog.v-overlay--active .closeable-dialog';
-    if (!(await $(selector).isDisplayed())) {
-      const button = $('button[data-testid="control-button-Settings"]');
-      await button.waitForClickable();
-      await button.click();
-    }
-    const dialog = await $(selector).getElement();
-    await dialog.waitForDisplayed();
-    await expect(dialog.$('.v-card-title')).toHaveText('Settings');
-    await dialog.waitForStable();
-    return dialog;
-  }
-
-  async closeSettings() {
-    const dialog = await $(
-      '.v-dialog.v-overlay--active .closeable-dialog'
-    ).getElement();
-    await expect(dialog.$('.v-card-title')).toHaveText('Settings');
-    const close = dialog.$('button.close-button');
-    await close.waitForClickable();
-    await close.click();
-    await dialog.waitForDisplayed({ reverse: true });
-  }
-
-  async openLayoutMenu(minOptionCount = 1) {
-    const menu = await this.openMenu(this.layoutButton);
-    await browser.waitUntil(
-      async () => (await menu.$$('.v-list-item').length) >= minOptionCount,
-      {
-        timeout: 5000,
-        timeoutMsg: `Expected layout menu to show at least ${minOptionCount} layout options`,
-        interval: 500,
-      }
+  const openSettings = async () => {
+    if (!(await settingsDialog.isVisible()))
+      await page
+        .locator('button[data-testid="control-button-Settings"]')
+        .click();
+    await expect(settingsDialog).toBeVisible();
+    await expect(settingsDialog.locator('.v-card-title')).toHaveText(
+      'Settings'
     );
-    return menu;
-  }
+    await waitForTransitions(settingsDialog);
+    return settingsDialog;
+  };
 
-  async getLayoutOptionTitles() {
-    return browser.execute((titleSelector: string) => {
+  const closeSettings = async () => {
+    await expect(settingsDialog.locator('.v-card-title')).toHaveText(
+      'Settings'
+    );
+    // The active class leaves on close, so follow the element itself out.
+    const dialog = await settingsDialog.elementHandle();
+    await settingsDialog.locator('button.close-button').click();
+    await dialog?.waitForElementState('hidden');
+  };
+
+  const openLayoutMenu = async (minOptionCount = 1) => {
+    const menu = await openMenu(layoutButton);
+    await expect
+      .poll(() => menu.locator('.v-list-item').count(), {
+        message: `Expected layout menu to show at least ${minOptionCount} layout options`,
+      })
+      .toBeGreaterThanOrEqual(minOptionCount);
+    return menu;
+  };
+
+  const getLayoutOptionTitles = () =>
+    page.evaluate((titleSelector) => {
       const items = Array.from(document.querySelectorAll(titleSelector));
       return items.map((item) => item.textContent?.trim() ?? '');
     }, '.v-list-item-title');
-  }
 
-  async selectLayoutOption(targetText: string) {
-    await browser.execute(
-      (text: string, titleSelector: string) => {
+  const selectLayoutOption = (targetText: string) =>
+    page.evaluate(
+      ([text, titleSelector]) => {
         const items = Array.from(document.querySelectorAll(titleSelector));
         const targetItem = items.find(
           (item) => item.textContent?.trim() === text
@@ -459,75 +351,144 @@ class VolViewPage extends Page {
         ) as HTMLElement | null;
         listItem?.click();
       },
-      targetText,
-      '.v-list-item-title'
+      [targetText, '.v-list-item-title']
     );
-  }
 
-  async focusFirst2DView() {
-    const views = await this.getViews2D();
-    const viewCount = await views.length;
-    if (!viewCount) {
+  const focusFirst2DView = async () => {
+    if (!(await views2D.count()))
       throw new Error('No 2D views rendered to focus');
-    }
+    await views2D.first().locator('canvas').click();
+  };
 
-    const firstView = views[0];
-    const canvas = await firstView.$('canvas');
-    await canvas.scrollIntoView();
-    await canvas.click();
-  }
-
-  async getFirst2DSlice() {
-    return browser.execute((selector: string) => {
+  const getFirst2DSlice = () =>
+    page.evaluate((selector) => {
       const views = document.querySelectorAll(selector);
-      if (views.length === 0) return null;
-      const overlayText = views[0].textContent;
-      const match = overlayText?.match(/Slice:\s*(\d+)/);
-      return match ? parseInt(match[1], 10) : null;
-    }, 'div[data-testid~="vtk-two-view"], div[data-testid~="vtk-cine-view"]');
-  }
+      if (views.length === 0) return undefined;
+      const match = views[0].textContent?.match(/Slice:\s*(\d+)/);
+      return match ? parseInt(match[1], 10) : undefined;
+    }, VIEWS_2D);
 
-  async waitForSliceDecrease(initialSlice: number | null) {
-    await browser.waitUntil(
-      async () => {
-        const currentSlice = await this.getFirst2DSlice();
-        if (initialSlice === null) {
-          return currentSlice !== null;
-        }
-        return currentSlice !== null && currentSlice < initialSlice;
-      },
-      {
-        timeoutMsg: 'Expected slice to decrease after advancing',
-      }
-    );
-  }
+  const waitForSliceDecrease = (initialSlice: number | undefined) =>
+    expect
+      .poll(
+        async () => {
+          const currentSlice = await getFirst2DSlice();
+          if (initialSlice === undefined) return currentSlice !== undefined;
+          return currentSlice !== undefined && currentSlice < initialSlice;
+        },
+        { message: 'Expected slice to decrease after advancing' }
+      )
+      .toBe(true);
 
-  async advanceSliceAndWait() {
-    const initialSlice = await this.getFirst2DSlice();
-    await browser.keys([Key.ArrowDown]);
-    await this.waitForSliceDecrease(initialSlice);
-  }
+  const advanceSliceAndWait = async () => {
+    const initialSlice = await getFirst2DSlice();
+    await page.keyboard.press('ArrowDown');
+    await waitForSliceDecrease(initialSlice);
+  };
 
-  async waitForLoadingIndicator(
-    view: ChainablePromiseElement,
-    timeout = DOWNLOAD_TIMEOUT
-  ) {
-    await browser.waitUntil(
-      () =>
-        view.execute((element) => {
-          const container = element.closest(
-            '[data-testid="two-view-container"]'
-          );
-          return !!container && !container.querySelector('.loading-indicator');
-        }),
-      {
-        timeout,
-        timeoutMsg: 'Expected loading indicator to disappear',
-      }
-    );
-  }
-}
+  const waitForLoadingIndicator = (view: Locator) =>
+    expect
+      .poll(
+        () =>
+          view.evaluate((element) => {
+            const container = element.closest(
+              '[data-testid="two-view-container"]'
+            );
+            return (
+              !!container && !container.querySelector('.loading-indicator')
+            );
+          }),
+        { message: 'Expected loading indicator to disappear' }
+      )
+      .toBe(true);
 
-export const volViewPage = new VolViewPage();
+  return {
+    open,
+    samplesList,
+    prostateSample,
+    downloadProstateSample: () => prostateSample.click(),
+    views: page.locator('div[data-testid~="vtk-view"] canvas'),
+    views2D,
+    layoutButton,
+    waitForViews,
+    notifications,
+    getNotificationsCount,
+    waitForNotification,
+    getNotificationTitles,
+    selectTool,
+    activateRectangle: () => selectTool('mdi-vector-square'),
+    activatePaint: () => selectTool('mdi-brush'),
+    processModeButton,
+    processTypeSelector,
+    fillHolesProcessOption,
+    fillHolesWholeVolumeButton: page.locator('button', {
+      hasText: containsText('All slices'),
+    }),
+    fillHolesSelectedSegmentButton: page.locator('button', {
+      hasText: containsText('Selected segment'),
+    }),
+    processPreviewButton,
+    processApplyButton,
+    processOriginalButton: page.locator('button', {
+      hasText: containsText('Original'),
+    }),
+    processProcessedButton: page.locator('button', {
+      hasText: containsText('Processed'),
+    }),
+    // The selected button in a Vuetify v-btn-toggle carries v-btn--active.
+    isPreviewToggleActive: async (button: Locator) =>
+      ((await button.getAttribute('class')) ?? '').includes('v-btn--active'),
+    paintStrokeOnView,
+    runFillHoles,
+    selectFillHolesProcess,
+    viewTwoContainer: page.locator('div[data-testid~="two-view-container"]'),
+    saveButton,
+    annotationsModuleTab: page.locator(
+      'button[data-testid="module-tab-Annotations"]'
+    ),
+    activeDialog,
+    saveSessionFilenameInput,
+    saveSessionConfirmButton,
+    saveSegmentsButtons,
+    segmentList: page.locator('[data-testid="segment-list"]'),
+    saveSegmentsFilenameInput: activeDialog.locator('#filename'),
+    saveSegmentsConfirmButton: activeDialog.locator('button', {
+      hasText: exactText('Save'),
+    }),
+    clickSaveSegmentsButton,
+    saveSession,
+    segmentStrokeWidthSlider: page.locator(
+      '[role="slider"][aria-label="Stroke Width"]'
+    ),
+    editLabelModalDoneButton: page.locator(
+      'button[data-testid="segment-editor-done-button"]'
+    ),
+    datasetMenuButtons: page.locator(
+      'button[data-testid="dataset-menu-button"]'
+    ),
+    renderingModuleTab: page.locator(
+      'button[data-testid="module-tab-Rendering"]'
+    ),
+    layerOpacitySliders: page.locator(
+      'div[data-testid="layer-opacity-slider"]'
+    ),
+    getVolumeRenderingSection,
+    getView3D,
+    getView2D,
+    waitForViewCounts,
+    openMenu,
+    closeMenu,
+    openSettings,
+    closeSettings,
+    openLayoutMenu,
+    getLayoutOptionTitles,
+    selectLayoutOption,
+    focusFirst2DView,
+    getFirst2DSlice,
+    waitForSliceDecrease,
+    advanceSliceAndWait,
+    waitForLoadingIndicator,
+  };
+};
 
-export default volViewPage;
+export type VolViewPage = ReturnType<typeof createVolViewPage>;

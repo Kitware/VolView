@@ -1,159 +1,158 @@
+import type { Page } from '@playwright/test';
 import { CINE_US_DATASET, PROSTATEX_DATASET } from '../datasets';
-import { openUrls } from './utils';
-import { volViewPage } from '../pageobjects/volview.page';
-import {
-  advanceCineFrame,
-  countCineRulerLines,
-  getCineFrame,
-  waitForFrame,
-} from './cineTestUtils';
-import { openSegmentShapes, revealSegment } from './segmentationTestUtils';
+import { test, expect } from '../fixtures';
+import type { VolViewPage } from '../pageobjects/volview.page';
 
-const waitForToolEntry = async (iconClass: string) => {
-  await browser.waitUntil(
-    async () => {
-      const entries = await $$(
-        `[data-testid="segment-shape-row"] i.${iconClass}`
-      );
-      return (await entries.length) >= 1;
-    },
-    { timeoutMsg: `Tool entry with icon ${iconClass} not found` }
-  );
-};
+const waitForToolEntry = (page: Page, iconClass: string) =>
+  expect
+    .poll(
+      () =>
+        page
+          .locator(`[data-testid="segment-shape-row"] i.${iconClass}`)
+          .count(),
+      { message: `Tool entry with icon ${iconClass} not found` }
+    )
+    .toBeGreaterThanOrEqual(1);
 
-const clickRevealSliceButton = async () => {
+const clickRevealSliceButton = async (page: Page) => {
   // The shape's own reveal, under its segment: the segment row carries one too.
-  const button = await $(
-    '[data-testid="segment-shape-row"] button[data-testid="reveal-shape-button"]'
-  );
-  await button.waitForClickable();
-  await button.click();
+  await page
+    .locator(
+      '[data-testid="segment-shape-row"] button[data-testid="reveal-shape-button"]'
+    )
+    .first()
+    .click();
 };
 
-const getCanvasCenter = async () => {
-  const views2D = await volViewPage.getViews2D();
-  const view = views2D[0];
-  const canvas = await view.$('canvas');
-  const location = await canvas.getLocation();
-  const size = await canvas.getSize();
+const getCanvasCenter = async (volview: VolViewPage) => {
+  const box = await volview.views2D.first().locator('canvas').boundingBox();
+  if (!box) throw new Error('The 2D view canvas is not on screen');
   return {
-    centerX: location.x + size.width / 2,
-    centerY: location.y + size.height / 2,
+    centerX: box.x + box.width / 2,
+    centerY: box.y + box.height / 2,
   };
 };
 
-const clickAt = async (x: number, y: number) => {
-  await browser
-    .action('pointer')
-    .move({ x: Math.round(x), y: Math.round(y) })
-    .down()
-    .up()
-    .perform();
+const clickAt = async (page: Page, x: number, y: number) => {
+  await page.mouse.move(Math.round(x), Math.round(y));
+  await page.mouse.down();
+  await page.mouse.up();
 };
 
-const placeRulerAtCanvasCenter = async () => {
-  const rulerToolButton = await $('button span i[class~=mdi-ruler]');
-  await rulerToolButton.click();
+const placeRulerAtCanvasCenter = async (page: Page, volview: VolViewPage) => {
+  await page.locator('button span i[class~=mdi-ruler]').click();
 
-  const { centerX, centerY } = await getCanvasCenter();
-  await clickAt(centerX - 40, centerY);
-  await clickAt(centerX + 40, centerY);
+  const { centerX, centerY } = await getCanvasCenter(volview);
+  await clickAt(page, centerX - 40, centerY);
+  await clickAt(page, centerX + 40, centerY);
 };
 
 // --- normal volume image ----------------------------------------------
 
-const waitForSliceOverlay = async () => {
-  await browser.waitUntil(
-    async () => (await volViewPage.getFirst2DSlice()) !== null,
-    { timeoutMsg: 'Slice overlay never appeared' }
-  );
-};
+const waitForSliceOverlay = (volview: VolViewPage) =>
+  expect
+    .poll(volview.getFirst2DSlice, { message: 'Slice overlay never appeared' })
+    .not.toBeUndefined();
 
-const waitForSlice = async (expectedSlice1Indexed: number) => {
-  await browser.waitUntil(
-    async () => {
-      const slice = await volViewPage.getFirst2DSlice();
-      return slice === expectedSlice1Indexed;
-    },
-    { timeoutMsg: `Expected view slice to reach ${expectedSlice1Indexed}` }
-  );
-};
+const waitForSlice = (volview: VolViewPage, expectedSlice1Indexed: number) =>
+  expect
+    .poll(volview.getFirst2DSlice, {
+      message: `Expected view slice to reach ${expectedSlice1Indexed}`,
+    })
+    .toBe(expectedSlice1Indexed);
 
-describe('Reveal Slice on a volume image', () => {
-  it('ruler Reveal Slice jumps the view back to the placed slice', async () => {
-    await openUrls([PROSTATEX_DATASET]);
+test.describe('Reveal Slice on a volume image', () => {
+  test('ruler Reveal Slice jumps the view back to the placed slice', async ({
+    page,
+    volview,
+    utils,
+    segmentation,
+  }) => {
+    await utils.openUrls([PROSTATEX_DATASET]);
 
-    await volViewPage.focusFirst2DView();
-    await waitForSliceOverlay();
-    const placementSlice = await volViewPage.getFirst2DSlice();
-    expect(placementSlice).not.toBeNull();
+    await volview.focusFirst2DView();
+    await waitForSliceOverlay(volview);
+    const placementSlice = await volview.getFirst2DSlice();
+    expect(placementSlice).not.toBeUndefined();
 
-    await placeRulerAtCanvasCenter();
+    await placeRulerAtCanvasCenter(page, volview);
 
     // Advance to a different slice so reveal has somewhere to jump back to.
-    await volViewPage.advanceSliceAndWait();
-    await volViewPage.advanceSliceAndWait();
-    const movedSlice = await volViewPage.getFirst2DSlice();
+    await volview.advanceSliceAndWait();
+    await volview.advanceSliceAndWait();
+    const movedSlice = await volview.getFirst2DSlice();
     expect(movedSlice).not.toBe(placementSlice);
 
-    await openSegmentShapes();
-    await waitForToolEntry('mdi-ruler');
+    await segmentation.openSegmentShapes();
+    await waitForToolEntry(page, 'mdi-ruler');
 
-    await clickRevealSliceButton();
-    await waitForSlice(placementSlice!);
+    await clickRevealSliceButton(page);
+    await waitForSlice(volview, placementSlice!);
   });
 });
 
 // --- cine ultrasound --------------------------------------------------
 
-describe('Reveal Slice on cine ultrasound', () => {
-  it('ruler Reveal Slice jumps to the cine frame the ruler was placed on', async () => {
-    await openUrls([CINE_US_DATASET]);
+test.describe('Reveal Slice on cine ultrasound', () => {
+  test('ruler Reveal Slice jumps to the cine frame the ruler was placed on', async ({
+    page,
+    volview,
+    utils,
+    cine,
+    segmentation,
+  }) => {
+    await utils.openUrls([CINE_US_DATASET]);
 
-    const playControls = $('.play-controls');
-    await playControls.waitForDisplayed();
-    await waitForFrame(1);
+    const playControls = page.locator('.play-controls').first();
+    await expect(playControls).toBeVisible();
+    await cine.waitForFrame(1);
 
-    await volViewPage.focusFirst2DView();
+    await volview.focusFirst2DView();
 
     // Cine images report dimensions [cols, rows, 1]; placing the tool past
     // frame 1 (slice index > 0) is what exercises the reveal-slice bug.
-    await advanceCineFrame();
-    await advanceCineFrame();
-    const placementFrame = await getCineFrame();
+    await cine.advanceCineFrame();
+    await cine.advanceCineFrame();
+    const placementFrame = await cine.getCineFrame();
     expect(placementFrame).not.toBe(1);
 
-    await placeRulerAtCanvasCenter();
+    await placeRulerAtCanvasCenter(page, volview);
 
     // Sanity check: the committed ruler is visible on the frame it was placed.
-    await browser.waitUntil(async () => (await countCineRulerLines()) >= 1, {
-      timeoutMsg: 'Expected the placed ruler line to render on the cine frame',
-    });
+    await expect
+      .poll(cine.countCineRulerLines, {
+        message: 'Expected the placed ruler line to render on the cine frame',
+      })
+      .toBeGreaterThanOrEqual(1);
 
-    await advanceCineFrame();
-    await advanceCineFrame();
-    const movedFrame = await getCineFrame();
+    await cine.advanceCineFrame();
+    await cine.advanceCineFrame();
+    const movedFrame = await cine.getCineFrame();
     expect(movedFrame).not.toBe(placementFrame);
 
     // Off the placement frame: the committed ruler must not render. The
     // placing-tool stub has no points yet and so contributes no <line>.
-    await browser.waitUntil(async () => (await countCineRulerLines()) === 0, {
-      timeoutMsg:
-        'Expected the placed ruler to be hidden on frames other than the placement frame',
-    });
+    await expect
+      .poll(cine.countCineRulerLines, {
+        message:
+          'Expected the placed ruler to be hidden on frames other than the placement frame',
+      })
+      .toBe(0);
 
-    await openSegmentShapes();
-    await waitForToolEntry('mdi-ruler');
+    await segmentation.openSegmentShapes();
+    await waitForToolEntry(page, 'mdi-ruler');
 
-    await clickRevealSliceButton();
-    await waitForFrame(placementFrame!);
+    await clickRevealSliceButton(page);
+    await cine.waitForFrame(placementFrame!);
 
-    await volViewPage.focusFirst2DView();
-    await advanceCineFrame();
-    await revealSegment('Segment 1');
-    await waitForFrame(placementFrame!);
-    await browser.waitUntil(async () => (await countCineRulerLines()) >= 1, {
-      timeoutMsg: 'Segment reveal should restore its cine annotation frame',
-    });
+    await volview.focusFirst2DView();
+    await cine.advanceCineFrame();
+    await segmentation.revealSegment('Segment 1');
+    await cine.waitForFrame(placementFrame!);
+    await expect
+      .poll(cine.countCineRulerLines, {
+        message: 'Segment reveal should restore its cine annotation frame',
+      })
+      .toBeGreaterThanOrEqual(1);
   });
 });

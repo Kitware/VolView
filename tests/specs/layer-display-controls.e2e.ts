@@ -1,24 +1,18 @@
+import * as path from 'node:path';
+import type { Page } from '@playwright/test';
+import { test, expect } from '../fixtures';
+import { CONTENT_VIEWPORT, TEMP_DIR } from '../e2eRun';
+import {
+  containsText,
+  holdKey,
+  setValueVueInput,
+  type VolViewPage,
+} from '../pageobjects/volview.page';
 import {
   layeredImageManifest,
-  openLayerDisplayControls,
+  type LayerDisplayUtils,
 } from './layerDisplayTestUtils';
-import * as path from 'path';
-import {
-  applyTestViewport,
-  CONTENT_VIEWPORT,
-  TEMP_DIR,
-} from '@/wdio.shared.conf';
-import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
-import {
-  capture2DViewPixels,
-  capture2DViewScreenshotMetrics,
-  selectLayout,
-  openVolViewPage,
-  SESSION_SAVE_TIMEOUT,
-  waitForDownload,
-  writeManifestToFile,
-  writeMetaImage,
-} from './utils';
+import type { Utils } from './utils';
 
 const paletteTitles = [
   'Grayscale',
@@ -32,233 +26,295 @@ const paletteTitles = [
   'Cool to Warm',
 ];
 
-async function expectPaletteOptions() {
-  const options = $$('[role="option"]');
-  const expected = paletteTitles;
-  await expect(options).toBeElementsArrayOfSize(expected.length);
-  for (const [index, title] of expected.entries()) {
-    const option = options[index];
-    await option.scrollIntoView({ block: 'nearest', behavior: 'instant' });
-    await expect(option).toHaveText(title);
+const createDisplayHelpers = ({
+  page,
+  volview,
+  utils,
+  layerDisplay,
+}: {
+  page: Page;
+  volview: VolViewPage;
+  utils: Utils;
+  layerDisplay: LayerDisplayUtils;
+}) => {
+  const option = (title: string) =>
+    page.locator('[role="option"]', { hasText: containsText(title) }).first();
+  const moveToHeader = () => utils.moveToElement(page.locator('header'));
+  const saveScreenshot = (name: string) =>
+    page.screenshot({ path: path.join(TEMP_DIR, name) });
+
+  async function expectPaletteOptions() {
+    const options = page.locator('[role="option"]');
+    const expected = paletteTitles;
+    await expect(options).toHaveCount(expected.length);
+    for (const [index, title] of expected.entries()) {
+      const item = options.nth(index);
+      await item.evaluate((element) =>
+        element.scrollIntoView({ block: 'nearest', behavior: 'instant' })
+      );
+      await expect(item).toHaveText(title);
+      await expect(
+        item.locator('[data-testid="layer-palette-option-swatch"]')
+      ).toHaveAttribute('style', /linear-gradient\(/);
+    }
+  }
+
+  async function captureViewPixels() {
+    return utils.capture2DViewScreenshotMetrics('overlay-capture.png');
+  }
+
+  async function windowingLabels() {
+    const views = await volview.views2D.all();
+    return Promise.all(
+      views.map(async (view) => {
+        const text = await view.innerText();
+        return text.match(/W\/L: [\d.-]+ \/ [\d.-]+/)?.[0];
+      })
+    );
+  }
+
+  async function expectAppliedRange(
+    min: string,
+    max: string,
+    displayedMax = max
+  ) {
+    await page
+      .locator('h4', { hasText: containsText('display-overlay.mha') })
+      .first()
+      .click();
     await expect(
-      option.$('[data-testid="layer-palette-option-swatch"]')
-    ).toHaveAttribute('style', expect.stringContaining('linear-gradient('));
+      page.locator('[data-testid="layer-range-min"] input')
+    ).toHaveValue(min);
+    await expect(
+      page.locator('[data-testid="layer-range-max"] input')
+    ).toHaveValue(displayedMax);
+    await expect(
+      page.locator('[data-testid="layer-range-min"] input')
+    ).toHaveAttribute('title', min);
+    await expect(
+      page.locator('[data-testid="layer-range-max"] input')
+    ).toHaveAttribute('title', max);
   }
-}
 
-async function captureViewPixels() {
-  return capture2DViewScreenshotMetrics('overlay-capture.png');
-}
+  async function expectDisplaySettings(
+    min: string,
+    max: string,
+    displayedMax = max
+  ) {
+    await expectAppliedRange(min, max, displayedMax);
+    await expect(page.locator('[data-testid="layer-colormap"]')).toContainText(
+      'Cool to Warm'
+    );
+    await expect(
+      page.locator('[data-testid="layer-opacity-slider"] [role="slider"]')
+    ).toHaveAttribute('aria-valuenow', '0.5');
+    await expect(
+      page.locator('[data-testid="layer-transparent-background"] input')
+    ).not.toBeChecked();
+  }
 
-async function windowingLabels() {
-  const views = await volViewPage.getViews2D();
-  return views.map(async (view) => {
-    const text = await view.getText();
-    return text.match(/W\/L: [\d.-]+ \/ [\d.-]+/)?.[0];
-  });
-}
+  async function expectRenderedPixels(
+    expected: Awaited<ReturnType<typeof captureViewPixels>>
+  ) {
+    await moveToHeader();
+    await expect
+      .poll(
+        async () => {
+          const pixels = await captureViewPixels();
+          return (
+            pixels.length === expected.length &&
+            pixels.every(
+              ({ colored, blue, checksum }, index) =>
+                colored === expected[index].colored &&
+                blue === expected[index].blue &&
+                checksum === expected[index].checksum
+            )
+          );
+        },
+        {
+          message:
+            'Expected matching overlay color counts and intensity sum after replacing views or reopening the session',
+        }
+      )
+      .toBe(true);
+  }
 
-async function expectAppliedRange(
-  min: string,
-  max: string,
-  displayedMax = max
-) {
-  await $('h4*=display-overlay.mha').click();
-  await expect($('[data-testid="layer-range-min"] input')).toHaveValue(min);
-  await expect($('[data-testid="layer-range-max"] input')).toHaveValue(
-    displayedMax
-  );
-  await expect($('[data-testid="layer-range-min"] input')).toHaveAttribute(
-    'title',
-    min
-  );
-  await expect($('[data-testid="layer-range-max"] input')).toHaveAttribute(
-    'title',
-    max
-  );
-}
-
-async function expectDisplaySettings(
-  min: string,
-  max: string,
-  displayedMax = max
-) {
-  await expectAppliedRange(min, max, displayedMax);
-  await expect($('[data-testid="layer-colormap"]')).toHaveText(
-    expect.stringContaining('Cool to Warm')
-  );
-  await expect(
-    $('[data-testid="layer-opacity-slider"] [role="slider"]')
-  ).toHaveAttribute('aria-valuenow', '0.5');
-  await expect(
-    $('[data-testid="layer-transparent-background"] input')
-  ).not.toBeChecked();
-}
-
-async function expectRenderedPixels(
-  expected: Awaited<ReturnType<typeof captureViewPixels>>
-) {
-  await $('header').moveTo();
-  await browser.waitUntil(
-    async () => {
-      const pixels = await captureViewPixels();
-      return (
-        pixels.length === expected.length &&
-        pixels.every(
-          ({ colored, blue, checksum }, index) =>
-            colored === expected[index].colored &&
-            blue === expected[index].blue &&
-            checksum === expected[index].checksum
-        )
-      );
-    },
-    {
-      timeoutMsg:
-        'Expected matching overlay color counts and intensity sum after replacing views or reopening the session',
-    }
-  );
-}
-
-async function openDisplayFixture({
-  preset = 'Cool to Warm',
-  mappingRange = [-2.75, 100.25],
-  opacity = 0.5,
-  transparentBackground = false,
-  singleSlice = false,
-} = {}) {
-  const display = { preset, mappingRange, opacity, transparentBackground };
-  const base = writeMetaImage('display-base.mha');
-  const overlay = writeMetaImage('display-overlay.mha', { step: 29 });
-  const manifest = 'display-controls.json';
-  await writeManifestToFile(
-    {
-      ...layeredImageManifest(base, overlay),
-      ...(singleSlice
-        ? {
-            layout: {
-              direction: 'row',
-              items: [{ type: 'slot', slotIndex: 0 }],
-            },
-            layoutSlots: ['axial'],
-            activeView: 'axial',
-            viewByID: {
-              axial: {
-                id: 'axial',
-                type: '2D',
-                name: 'Axial',
-                dataID: 'base',
-                options: { orientation: 'Axial' },
+  async function openDisplayFixture({
+    preset = 'Cool to Warm',
+    mappingRange = [-2.75, 100.25],
+    opacity = 0.5,
+    transparentBackground = false,
+    singleSlice = false,
+  } = {}) {
+    const display = { preset, mappingRange, opacity, transparentBackground };
+    const base = utils.writeMetaImage('display-base.mha');
+    const overlay = utils.writeMetaImage('display-overlay.mha', { step: 29 });
+    const manifest = 'display-controls.json';
+    await utils.writeManifestToFile(
+      {
+        ...layeredImageManifest(base, overlay),
+        ...(singleSlice
+          ? {
+              layout: {
+                direction: 'row',
+                items: [{ type: 'slot', slotIndex: 0 }],
               },
-            },
-          }
-        : {}),
-      layerDisplay: {
-        'base::overlay': display,
+              layoutSlots: ['axial'],
+              activeView: 'axial',
+              viewByID: {
+                axial: {
+                  id: 'axial',
+                  type: '2D',
+                  name: 'Axial',
+                  dataID: 'base',
+                  options: { orientation: 'Axial' },
+                },
+              },
+            }
+          : {}),
+        layerDisplay: {
+          'base::overlay': display,
+        },
       },
-    },
-    manifest
-  );
+      manifest
+    );
 
-  await openVolViewPage(manifest);
-  const baseCard = $(`.image-list-card*=${base}`);
-  await baseCard.waitForClickable();
-  await baseCard.$('[data-testid="dataset-menu-button"]').click();
-  const showInAllViews = $('.v-list-item*=Show in all views');
-  await showInAllViews.waitForClickable();
-  await showInAllViews.click();
-  await browser.keys('Escape');
-  await openLayerDisplayControls();
-  await $('header').moveTo();
-  await browser.waitUntil(
-    async () => {
-      const pixels = await captureViewPixels();
-      return (
-        pixels.length === (singleSlice ? 1 : 3) &&
-        pixels.every(({ colored }) => colored > 1000)
-      );
-    },
-    { timeoutMsg: 'Expected the overlay to render in every 2D view' }
-  );
-}
-
-async function openEditedDisplayFixture(singleSlice = false) {
-  await openDisplayFixture({
-    preset: 'DICOM Hot Iron',
-    mappingRange: [0, 255],
-    opacity: 0.6,
-    singleSlice,
-  });
-  const select = $('[data-testid="layer-colormap"]');
-  await select.scrollIntoView({ block: 'center', behavior: 'instant' });
-  await select.click();
-  const option = $('[role="option"]*=Cool to Warm');
-  await option.scrollIntoView({ block: 'center', behavior: 'instant' });
-  await option.waitForClickable();
-  await option.click();
-  await setValueVueInput($('[data-testid="layer-range-min"] input'), '-2.75');
-  await setValueVueInput($('[data-testid="layer-range-max"] input'), '100.25');
-  await browser.execute(() => {
-    document
-      .querySelector<HTMLElement>(
-        '[data-testid="layer-opacity-slider"] [role="slider"]'
-      )!
-      .focus();
-  });
-  await browser.keys('PageDown');
-  await expectDisplaySettings('-2.75', '100.25', '100.3');
-  await $('header').moveTo();
-  await browser.waitUntil(
-    async () => {
-      const pixels = await captureViewPixels();
-      return (
-        pixels.length === (singleSlice ? 1 : 3) &&
-        pixels.every(({ colored, blue }) => colored > 1000 && blue > 0)
-      );
-    },
-    {
-      timeoutMsg: 'Expected the edited Cool to Warm palette in every 2D view',
-    }
-  );
-  const baseWindowing = await windowingLabels();
-  expect(baseWindowing.every(Boolean)).toBe(true);
-  const appliedPixels = await captureViewPixels();
-  return { baseWindowing, appliedPixels };
-}
-
-async function convertSlicesToVolumes() {
-  const views = await volViewPage.getViews2D();
-  const count = await views.length;
-  expect(count).toBeGreaterThan(0);
-  for (let remaining = count - 1; remaining >= 0; remaining--) {
-    const view = (await volViewPage.getViews2D())[0];
-    await view.$('.view-type-select').click();
-    const volume = $('[role="option"]*=Volume');
-    await volume.waitForClickable();
-    await volume.click();
-    await volViewPage.waitForViewCounts(remaining, true);
+    await utils.openVolViewPage(manifest);
+    const baseCard = page
+      .locator('.image-list-card', { hasText: containsText(base) })
+      .first();
+    await expect(baseCard).toBeVisible();
+    await expect(baseCard).toBeEnabled();
+    await baseCard.locator('[data-testid="dataset-menu-button"]').click();
+    const showInAllViews = page
+      .locator('.v-list-item', { hasText: containsText('Show in all views') })
+      .first();
+    await showInAllViews.click();
+    await page.keyboard.press('Escape');
+    await layerDisplay.openLayerDisplayControls();
+    await moveToHeader();
+    await expect
+      .poll(
+        async () => {
+          const pixels = await captureViewPixels();
+          return (
+            pixels.length === (singleSlice ? 1 : 3) &&
+            pixels.every(({ colored }) => colored > 1000)
+          );
+        },
+        { message: 'Expected the overlay to render in every 2D view' }
+      )
+      .toBe(true);
   }
-}
 
-describe('Overlay display controls', () => {
+  async function openEditedDisplayFixture(singleSlice = false) {
+    await openDisplayFixture({
+      preset: 'DICOM Hot Iron',
+      mappingRange: [0, 255],
+      opacity: 0.6,
+      singleSlice,
+    });
+    const select = page.locator('[data-testid="layer-colormap"]');
+    await select.evaluate((element) =>
+      element.scrollIntoView({ block: 'center', behavior: 'instant' })
+    );
+    await select.click();
+    const coolToWarm = option('Cool to Warm');
+    await coolToWarm.evaluate((element) =>
+      element.scrollIntoView({ block: 'center', behavior: 'instant' })
+    );
+    await coolToWarm.click();
+    await setValueVueInput(
+      page.locator('[data-testid="layer-range-min"] input'),
+      '-2.75'
+    );
+    await setValueVueInput(
+      page.locator('[data-testid="layer-range-max"] input'),
+      '100.25'
+    );
+    await page.evaluate(() => {
+      document
+        .querySelector<HTMLElement>(
+          '[data-testid="layer-opacity-slider"] [role="slider"]'
+        )!
+        .focus();
+    });
+    await page.keyboard.press('PageDown');
+    await expectDisplaySettings('-2.75', '100.25', '100.3');
+    await moveToHeader();
+    await expect
+      .poll(
+        async () => {
+          const pixels = await captureViewPixels();
+          return (
+            pixels.length === (singleSlice ? 1 : 3) &&
+            pixels.every(({ colored, blue }) => colored > 1000 && blue > 0)
+          );
+        },
+        {
+          message: 'Expected the edited Cool to Warm palette in every 2D view',
+        }
+      )
+      .toBe(true);
+    const baseWindowing = await windowingLabels();
+    expect(baseWindowing.every(Boolean)).toBe(true);
+    const appliedPixels = await captureViewPixels();
+    return { baseWindowing, appliedPixels };
+  }
+
+  async function convertSlicesToVolumes() {
+    const count = await volview.views2D.count();
+    expect(count).toBeGreaterThan(0);
+    for (let remaining = count - 1; remaining >= 0; remaining--) {
+      const view = volview.views2D.first();
+      await view.locator('.view-type-select').click();
+      await option('Volume').click();
+      await volview.waitForViewCounts(remaining, true);
+    }
+  }
+
+  return {
+    option,
+    moveToHeader,
+    saveScreenshot,
+    expectPaletteOptions,
+    captureViewPixels,
+    windowingLabels,
+    expectAppliedRange,
+    expectDisplaySettings,
+    expectRenderedPixels,
+    openDisplayFixture,
+    openEditedDisplayFixture,
+    convertSlicesToVolumes,
+  };
+};
+
+test.describe('Overlay display controls', () => {
   // Capture and compare at a compact viewport to limit volume rendering work.
-  before(async () => {
-    await browser.setViewport({ ...CONTENT_VIEWPORT, height: 400 });
-  });
-  after(async () => {
-    await applyTestViewport(browser);
-  });
+  test.use({ viewport: { ...CONTENT_VIEWPORT, height: 400 } });
 
   for (const { title, preset } of [
     { title: 'missing', preset: undefined },
     { title: 'unknown', preset: 'Unknown palette' },
   ]) {
-    it(`uses Hot Iron for a ${title} saved palette`, async () => {
-      const base = writeMetaImage(`fallback-${title}-base.mha`);
-      const overlay = writeMetaImage(`fallback-${title}-overlay.mha`, {
+    test(`uses Hot Iron for a ${title} saved palette`, async ({
+      page,
+      volview,
+      utils,
+      layerDisplay,
+    }) => {
+      const { option } = createDisplayHelpers({
+        page,
+        volview,
+        utils,
+        layerDisplay,
+      });
+      const base = utils.writeMetaImage(`fallback-${title}-base.mha`);
+      const overlay = utils.writeMetaImage(`fallback-${title}-overlay.mha`, {
         step: 29,
       });
       const manifest = `fallback-${title}.json`;
-      await writeManifestToFile(
+      await utils.writeManifestToFile(
         {
           ...layeredImageManifest(base, overlay),
           layerDisplay: {
@@ -272,252 +328,270 @@ describe('Overlay display controls', () => {
         },
         manifest
       );
-      await openVolViewPage(manifest);
-      await openLayerDisplayControls();
-      const select = $('[data-testid="layer-colormap"]');
-      await expect(select).toHaveText(
-        expect.stringContaining('DICOM Hot Iron')
-      );
-      await expect($('[data-testid="layer-range-min"] input')).toHaveValue(
-        '20'
-      );
-      await expect($('[data-testid="layer-range-max"] input')).toHaveValue(
-        '200'
-      );
+      await utils.openVolViewPage(manifest);
+      await layerDisplay.openLayerDisplayControls();
+      const select = page.locator('[data-testid="layer-colormap"]');
+      await expect(select).toContainText('DICOM Hot Iron');
       await expect(
-        $('[data-testid="layer-opacity-slider"] [role="slider"]')
+        page.locator('[data-testid="layer-range-min"] input')
+      ).toHaveValue('20');
+      await expect(
+        page.locator('[data-testid="layer-range-max"] input')
+      ).toHaveValue('200');
+      await expect(
+        page.locator('[data-testid="layer-opacity-slider"] [role="slider"]')
       ).toHaveAttribute('aria-valuenow', '0.4');
       await expect(
-        $('[data-testid="layer-transparent-background"] input')
+        page.locator('[data-testid="layer-transparent-background"] input')
       ).not.toBeChecked();
-      await select.scrollIntoView({ block: 'center', behavior: 'instant' });
+      await select.evaluate((element) =>
+        element.scrollIntoView({ block: 'center', behavior: 'instant' })
+      );
       await select.click();
-      await expect($('[role="option"]*=DICOM Hot Iron')).toHaveAttribute(
+      await expect(option('DICOM Hot Iron')).toHaveAttribute(
         'aria-selected',
         'true'
       );
-      await browser.keys('Escape');
+      await page.keyboard.press('Escape');
     });
   }
 
-  it('applies palette, opacity and range edits in every view and preserves pixels for invalid drafts', async () => {
+  test('applies palette, opacity and range edits in every view and preserves pixels for invalid drafts', async ({
+    page,
+    volview,
+    utils,
+    layerDisplay,
+  }) => {
+    const {
+      option,
+      moveToHeader,
+      saveScreenshot,
+      captureViewPixels,
+      windowingLabels,
+      expectAppliedRange,
+      openDisplayFixture,
+    } = createDisplayHelpers({ page, volview, utils, layerDisplay });
+    const toasts = page.locator('.Vue-Toastification__toast');
     await openDisplayFixture({
       preset: 'DICOM Hot Iron',
       mappingRange: [0, 255],
       opacity: 1,
       transparentBackground: true,
     });
-    const transparent = $('[data-testid="layer-transparent-background"] input');
-    await expect(transparent).toBeChecked();
-    await browser.waitUntil(
-      async () => (await $$('.Vue-Toastification__toast').length) === 0
+    const transparent = page.locator(
+      '[data-testid="layer-transparent-background"] input'
     );
-    await transparent.scrollIntoView({ block: 'center', behavior: 'instant' });
+    await expect(transparent).toBeChecked();
+    await expect(toasts).toHaveCount(0);
+    await transparent.evaluate((element) =>
+      element.scrollIntoView({ block: 'center', behavior: 'instant' })
+    );
     await transparent.click();
     await expect(transparent).not.toBeChecked();
-    const select = $('[data-testid="layer-colormap"]');
-    await expect(select).toHaveText(expect.stringContaining('DICOM Hot Iron'));
-    const rangeHandles = await $$(
-      '[data-testid="layer-range-slider"] [role="slider"]'
-    );
-    expect(
-      await rangeHandles.map((handle) => handle.getComputedLabel())
-    ).toEqual(
-      expect.arrayContaining([
-        'Display range minimum',
-        'Display range maximum',
-        'Display range center',
-      ])
-    );
-    expect(rangeHandles).toHaveLength(3);
+    const select = page.locator('[data-testid="layer-colormap"]');
+    await expect(select).toContainText('DICOM Hot Iron');
+    const rangeSlider = page.locator('[data-testid="layer-range-slider"]');
+    for (const name of [
+      'Display range minimum',
+      'Display range maximum',
+      'Display range center',
+    ])
+      await expect(
+        rangeSlider.getByRole('slider', { name, exact: true })
+      ).toHaveCount(1);
+    await expect(rangeSlider.locator('[role="slider"]')).toHaveCount(3);
     await expect(
-      await $(
-        '[data-testid="layer-opacity-slider"] [role="slider"]'
-      ).getComputedLabel()
-    ).toBe('Opacity');
-    await browser.waitUntil(
-      async () => (await $$('.Vue-Toastification__toast').length) === 0
-    );
-    await $('[data-testid="layer-range-min"] input').scrollIntoView({
-      block: 'center',
-      behavior: 'instant',
-    });
-    await select.waitForClickable();
-    await browser.execute(() => {
+      page.locator('[data-testid="layer-opacity-slider"] [role="slider"]')
+    ).toHaveAccessibleName('Opacity');
+    await expect(toasts).toHaveCount(0);
+    await page
+      .locator('[data-testid="layer-range-min"] input')
+      .evaluate((element) =>
+        element.scrollIntoView({ block: 'center', behavior: 'instant' })
+      );
+    await expect(select).toBeVisible();
+    await expect(select).toBeEnabled();
+    await page.evaluate(() => {
       document
         .querySelector<HTMLElement>(
           '[data-testid="layer-opacity-slider"] [role="slider"]'
         )!
         .focus();
     });
-    await browser.keys('Home');
-    for (let step = 0; step < 5; step++) await browser.keys('PageUp');
+    await page.keyboard.press('Home');
+    await holdKey(page, 'PageUp', 5);
     await expect(
-      $('[data-testid="layer-opacity-slider"] [role="slider"]')
+      page.locator('[data-testid="layer-opacity-slider"] [role="slider"]')
     ).toHaveAttribute('aria-valuenow', '0.5');
 
-    const views = await volViewPage.getViews2D();
-    expect(await views.length).toBe(3);
+    expect(await volview.views2D.count()).toBe(3);
     const baseWindowing = await windowingLabels();
     expect(baseWindowing.every(Boolean)).toBe(true);
-    await select.scrollIntoView({ block: 'center', behavior: 'instant' });
-    await browser.waitUntil(
-      async () => (await $$('.Vue-Toastification__toast').length) === 0
+    await select.evaluate((element) =>
+      element.scrollIntoView({ block: 'center', behavior: 'instant' })
     );
+    await expect(toasts).toHaveCount(0);
     await select.click();
-    await expect($('[role="option"]*=DICOM Hot Iron')).toHaveAttribute(
+    await expect(option('DICOM Hot Iron')).toHaveAttribute(
       'aria-selected',
       'true'
     );
-    const coolToWarm = $('[role="option"]*=Cool to Warm');
-    await coolToWarm.scrollIntoView({ block: 'center', behavior: 'instant' });
-    await coolToWarm.waitForClickable();
-    await coolToWarm
-      .$('[data-testid="layer-palette-option-swatch"]')
-      .waitForDisplayed();
-    await browser.saveScreenshot(
-      path.join(TEMP_DIR, 'overlay-palette-menu.png')
+    const coolToWarm = option('Cool to Warm');
+    await coolToWarm.evaluate((element) =>
+      element.scrollIntoView({ block: 'center', behavior: 'instant' })
     );
+    await expect(coolToWarm).toBeVisible();
+    await expect(coolToWarm).toBeEnabled();
+    await expect(
+      coolToWarm.locator('[data-testid="layer-palette-option-swatch"]')
+    ).toBeVisible();
+    await saveScreenshot('overlay-palette-menu.png');
     await coolToWarm.click();
-    await expect(select).toHaveText(expect.stringContaining('Cool to Warm'));
-    await browser.waitUntil(
-      async () => {
-        const pixels = await captureViewPixels();
-        return pixels.length === 3 && pixels.every(({ blue }) => blue > 1000);
-      },
-      {
-        timeoutMsg: 'Expected palette to change pixels in all three 2D views',
-      }
-    );
+    await expect(select).toContainText('Cool to Warm');
+    await expect
+      .poll(
+        async () => {
+          const pixels = await captureViewPixels();
+          return pixels.length === 3 && pixels.every(({ blue }) => blue > 1000);
+        },
+        {
+          message: 'Expected palette to change pixels in all three 2D views',
+        }
+      )
+      .toBe(true);
 
     const beforeRange = await captureViewPixels();
-    await $('[data-testid="layer-range-min"] input').scrollIntoView({
-      block: 'center',
-      behavior: 'instant',
-    });
-    await $('[data-testid="layer-range-min"] input').waitForClickable();
-    await setValueVueInput($('[data-testid="layer-range-min"] input'), '-2.75');
-    await setValueVueInput(
-      $('[data-testid="layer-range-max"] input'),
-      '100.25'
+    const rangeMin = page.locator('[data-testid="layer-range-min"] input');
+    const rangeMax = page.locator('[data-testid="layer-range-max"] input');
+    await rangeMin.evaluate((element) =>
+      element.scrollIntoView({ block: 'center', behavior: 'instant' })
     );
+    await expect(rangeMin).toBeVisible();
+    await expect(rangeMin).toBeEnabled();
+    await setValueVueInput(rangeMin, '-2.75');
+    await setValueVueInput(rangeMax, '100.25');
     await expectAppliedRange('-2.75', '100.25', '100.3');
-    await $('[data-testid="layer-range-max"] input').click();
-    await expect($('[data-testid="layer-range-max"] input')).toHaveValue(
-      '100.3'
-    );
-    await expect($('[data-testid="layer-range-max"] input')).toHaveAttribute(
-      'title',
-      '100.25'
-    );
+    await rangeMax.click();
+    await expect(rangeMax).toHaveValue('100.3');
+    await expect(rangeMax).toHaveAttribute('title', '100.25');
     await expectAppliedRange('-2.75', '100.25', '100.3');
-    await browser.waitUntil(
-      async () => {
-        const after = await captureViewPixels();
-        return (
-          after.length === 3 &&
-          after.every(
-            ({ colored, blue, checksum }, index) =>
-              colored > 1000 &&
-              blue < beforeRange[index].blue &&
-              checksum !== beforeRange[index].checksum
-          )
-        );
-      },
-      {
-        timeoutMsg: 'Expected range to change pixels in all three 2D views',
-      }
-    );
-    await expect($('[data-testid="layer-opacity-slider"] input')).toHaveValue(
-      '0.5'
-    );
+    await expect
+      .poll(
+        async () => {
+          const after = await captureViewPixels();
+          return (
+            after.length === 3 &&
+            after.every(
+              ({ colored, blue, checksum }, index) =>
+                colored > 1000 &&
+                blue < beforeRange[index].blue &&
+                checksum !== beforeRange[index].checksum
+            )
+          );
+        },
+        {
+          message: 'Expected range to change pixels in all three 2D views',
+        }
+      )
+      .toBe(true);
     await expect(
-      $('[data-testid="layer-opacity-slider"] [role="slider"]')
+      page.locator('[data-testid="layer-opacity-slider"] input')
+    ).toHaveValue('0.5');
+    await expect(
+      page.locator('[data-testid="layer-opacity-slider"] [role="slider"]')
     ).toHaveAttribute('aria-valuenow', '0.5');
     await expectAppliedRange('-2.75', '100.25', '100.3');
     expect(await windowingLabels()).toEqual(baseWindowing);
-    await $('header').moveTo();
+    await moveToHeader();
     const appliedPixels = await captureViewPixels();
-    await setValueVueInput($('[data-testid="layer-range-max"] input'), '-3');
-    await $('[data-testid="layer-range-max"] input').click();
-    await browser.keys('Enter');
-    await expect($('[data-testid="layer-range-status"]')).toHaveText(
+    await setValueVueInput(rangeMax, '-3');
+    await rangeMax.click();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('[data-testid="layer-range-status"]')).toHaveText(
       'Min must be less than Max.'
     );
-    await expect($('[data-testid="layer-range-min"] input')).toHaveAttribute(
-      'title',
-      '-2.75'
-    );
-    await expect($('[data-testid="layer-range-max"] input')).toHaveAttribute(
-      'title',
-      '100.25'
-    );
+    await expect(rangeMin).toHaveAttribute('title', '-2.75');
+    await expect(rangeMax).toHaveAttribute('title', '100.25');
     expect(await captureViewPixels()).toEqual(appliedPixels);
 
-    await setValueVueInput(
-      $('[data-testid="layer-range-max"] input'),
-      '100.25'
-    );
-    await setValueVueInput($('[data-testid="layer-range-min"] input'), '0');
-    await setValueVueInput($('[data-testid="layer-range-max"] input'), '255');
-    await $('header').moveTo();
+    await setValueVueInput(rangeMax, '100.25');
+    await setValueVueInput(rangeMin, '0');
+    await setValueVueInput(rangeMax, '255');
+    await moveToHeader();
     await expectAppliedRange('0', '255');
-    await expect($('[data-testid="layer-colormap"]')).toHaveText(
-      expect.stringContaining('Cool to Warm')
+    await expect(page.locator('[data-testid="layer-colormap"]')).toContainText(
+      'Cool to Warm'
     );
     await expect(
-      $('[data-testid="layer-opacity-slider"] [role="slider"]')
+      page.locator('[data-testid="layer-opacity-slider"] [role="slider"]')
     ).toHaveAttribute('aria-valuenow', '0.5');
-    await browser.waitUntil(
-      async () => {
-        const fullRange = await captureViewPixels();
-        return (
-          fullRange.length === 3 &&
-          fullRange.every(({ blue }, index) => blue === beforeRange[index].blue)
-        );
-      },
-      {
-        timeoutMsg:
-          'Expected entering the full image range to restore the colors in all three views',
-      }
-    );
-    await browser.execute(() => {
+    await expect
+      .poll(
+        async () => {
+          const fullRange = await captureViewPixels();
+          return (
+            fullRange.length === 3 &&
+            fullRange.every(
+              ({ blue }, index) => blue === beforeRange[index].blue
+            )
+          );
+        },
+        {
+          message:
+            'Expected entering the full image range to restore the colors in all three views',
+        }
+      )
+      .toBe(true);
+    await page.evaluate(() => {
       document
         .querySelector<HTMLElement>('[data-testid="layer-range-max-handle"]')!
         .focus();
     });
-    for (let step = 0; step < 10; step++) await browser.keys('ArrowDown');
-    await expect($('[data-testid="layer-range-min"] input')).toHaveValue('0');
-    await expect($('[data-testid="layer-range-max"] input')).toHaveValue(
-      '229.5'
-    );
-    expect(
-      Number(
-        await $('[data-testid="layer-range-max"] input').getAttribute('title')
+    await holdKey(page, 'ArrowDown', 10);
+    await expect(rangeMin).toHaveValue('0');
+    await expect(rangeMax).toHaveValue('229.5');
+    expect(Number(await rangeMax.getAttribute('title'))).toBeCloseTo(229.5, 8);
+    await moveToHeader();
+    await expect
+      .poll(
+        async () => {
+          const pixels = await captureViewPixels();
+          return (
+            pixels.length === 3 &&
+            pixels.every(({ blue }, index) => blue < beforeRange[index].blue)
+          );
+        },
+        {
+          message:
+            'Expected the range slider to update the overlay immediately in all three views',
+        }
       )
-    ).toBeCloseTo(229.5, 8);
-    await $('header').moveTo();
-    await browser.waitUntil(
-      async () => {
-        const pixels = await captureViewPixels();
-        return (
-          pixels.length === 3 &&
-          pixels.every(({ blue }, index) => blue < beforeRange[index].blue)
-        );
-      },
-      {
-        timeoutMsg:
-          'Expected the range slider to update the overlay immediately in all three views',
-      }
-    );
-    await browser.saveScreenshot(
-      path.join(TEMP_DIR, 'overlay-display-controls.png')
-    );
+      .toBe(true);
+    await saveScreenshot('overlay-display-controls.png');
   });
 
-  it('edits overlay opacity in 3D Only and applies it when returning to slices', async () => {
+  test('edits overlay opacity in 3D Only and applies it when returning to slices', async ({
+    page,
+    volview,
+    utils,
+    layerDisplay,
+  }) => {
+    const {
+      moveToHeader,
+      windowingLabels,
+      expectAppliedRange,
+      expectDisplaySettings,
+      expectRenderedPixels,
+      openEditedDisplayFixture,
+    } = createDisplayHelpers({ page, volview, utils, layerDisplay });
+    const volumeValues = () =>
+      page
+        .locator('.mapping-range-editor input')
+        .evaluateAll((inputs) =>
+          inputs.map((input) => (input as HTMLInputElement).value)
+        );
     const { baseWindowing, appliedPixels } = await openEditedDisplayFixture();
-    await selectLayout('3D Only', 0, true);
+    await utils.selectLayout('3D Only', 0, true);
     for (const name of [
       'colormap',
       'range-min',
@@ -525,209 +599,258 @@ describe('Overlay display controls', () => {
       'transparent-background',
       'opacity-slider',
     ]) {
-      await expect($(`[data-testid="layer-${name}"]`)).toBeDisplayed();
-      await expect($(`[data-testid="layer-${name}"] input`)).toBeEnabled();
+      await expect(page.locator(`[data-testid="layer-${name}"]`)).toBeVisible();
+      await expect(
+        page.locator(`[data-testid="layer-${name}"] input`)
+      ).toBeEnabled();
     }
-    for (const handle of await $$(
-      '[data-testid="layer-range-slider"] [role="slider"]'
-    ))
+    for (const handle of await page
+      .locator('[data-testid="layer-range-slider"] [role="slider"]')
+      .all())
       await expect(handle).toHaveAttribute('tabindex', '0');
-    const volumeSettings = await $$('.mapping-range-editor input').map(
-      (input) => input.getValue()
-    );
+    const volumeSettings = await volumeValues();
     expect(volumeSettings).toHaveLength(2);
-    const opacity = $('[data-testid="layer-opacity-slider"] [role="slider"]');
-    await opacity.execute((element) => element.focus());
-    await browser.keys('Home');
+    const opacity = page.locator(
+      '[data-testid="layer-opacity-slider"] [role="slider"]'
+    );
+    await opacity.focus();
+    await page.keyboard.press('Home');
     await expect(opacity).toHaveAttribute('aria-valuenow', '0');
-    expect(
-      await $$('.mapping-range-editor input').map((input) => input.getValue())
-    ).toEqual(volumeSettings);
+    expect(await volumeValues()).toEqual(volumeSettings);
 
-    await selectLayout('Axial Only', 1, false);
+    await utils.selectLayout('Axial Only', 1, false);
     await expectAppliedRange('-2.75', '100.25', '100.3');
     await expect(opacity).toHaveAttribute('aria-valuenow', '0');
-    await $('header').moveTo();
-    await browser.waitUntil(
-      async () => {
-        const pixels = await capture2DViewPixels(
-          40,
-          'base-without-overlay.png'
-        );
-        if (pixels.length !== 1) return false;
-        let colored = 0;
-        let brightGrayscale = 0;
-        const { data } = pixels[0];
-        for (let i = 0; i < data.length; i += 4) {
-          const maximum = Math.max(data[i], data[i + 1], data[i + 2]);
-          const minimum = Math.min(data[i], data[i + 1], data[i + 2]);
-          if (maximum - minimum > 40) colored++;
-          if (maximum - minimum < 5 && minimum > 32) brightGrayscale++;
+    await moveToHeader();
+    await expect
+      .poll(
+        async () => {
+          const pixels = await utils.capture2DViewPixels(
+            40,
+            'base-without-overlay.png'
+          );
+          if (pixels.length !== 1) return false;
+          let colored = 0;
+          let brightGrayscale = 0;
+          const { data } = pixels[0];
+          for (let i = 0; i < data.length; i += 4) {
+            const maximum = Math.max(data[i], data[i + 1], data[i + 2]);
+            const minimum = Math.min(data[i], data[i + 1], data[i + 2]);
+            if (maximum - minimum > 40) colored++;
+            if (maximum - minimum < 5 && minimum > 32) brightGrayscale++;
+          }
+          return colored < 100 && brightGrayscale > 1000;
+        },
+        {
+          message:
+            'Expected the replacement axial view to show the base without colored overlay pixels',
         }
-        return colored < 100 && brightGrayscale > 1000;
-      },
-      {
-        timeoutMsg:
-          'Expected the replacement axial view to show the base without colored overlay pixels',
-      }
-    );
-    await selectLayout('3D Only', 0, true);
-    await opacity.execute((element) => element.focus());
-    await browser.keys(Array.from({ length: 5 }, () => 'PageUp'));
+      )
+      .toBe(true);
+    await utils.selectLayout('3D Only', 0, true);
+    await opacity.focus();
+    await holdKey(page, 'PageUp', 5);
     await expectDisplaySettings('-2.75', '100.25', '100.3');
-    expect(
-      await $$('.mapping-range-editor input').map((input) => input.getValue())
-    ).toEqual(volumeSettings);
-    await selectLayout('Four Up', 3, true);
+    expect(await volumeValues()).toEqual(volumeSettings);
+    await utils.selectLayout('Four Up', 3, true);
     await expectDisplaySettings('-2.75', '100.25', '100.3');
     expect(await windowingLabels()).toEqual(baseWindowing);
     await expectRenderedPixels(appliedPixels);
   });
 
-  it('restores global appearance after converting every 2D view', async () => {
+  test('restores global appearance after converting every 2D view', async ({
+    page,
+    volview,
+    utils,
+    layerDisplay,
+  }) => {
+    const {
+      windowingLabels,
+      expectDisplaySettings,
+      expectRenderedPixels,
+      openEditedDisplayFixture,
+      convertSlicesToVolumes,
+    } = createDisplayHelpers({ page, volview, utils, layerDisplay });
     const { baseWindowing, appliedPixels } = await openEditedDisplayFixture();
     await convertSlicesToVolumes();
-    await selectLayout('Four Up', 3, true);
+    await utils.selectLayout('Four Up', 3, true);
     await expectDisplaySettings('-2.75', '100.25', '100.3');
     expect(await windowingLabels()).toEqual(baseWindowing);
     await expectRenderedPixels(appliedPixels);
   });
 
-  it('restores global appearance from a session saved after removing the last 2D view', async () => {
+  test('restores global appearance from a session saved after removing the last 2D view', async ({
+    page,
+    volview,
+    utils,
+    layerDisplay,
+  }) => {
+    const {
+      windowingLabels,
+      expectDisplaySettings,
+      expectRenderedPixels,
+      openEditedDisplayFixture,
+      convertSlicesToVolumes,
+    } = createDisplayHelpers({ page, volview, utils, layerDisplay });
     const { baseWindowing, appliedPixels } =
       await openEditedDisplayFixture(true);
     await convertSlicesToVolumes();
-    const saved = await volViewPage.saveSession();
-    await waitForDownload(path.join(TEMP_DIR, saved), SESSION_SAVE_TIMEOUT);
-    await openVolViewPage(saved);
-    await volViewPage.waitForViewCounts(0, true);
-    await openLayerDisplayControls();
-    await expect($('[data-testid="layer-range-min"] input')).toBeEnabled();
-    await selectLayout('Axial Only', 1, false);
+    const saved = await volview.saveSession();
+    await utils.openVolViewPage(saved);
+    await volview.waitForViewCounts(0, true);
+    await layerDisplay.openLayerDisplayControls();
+    await expect(
+      page.locator('[data-testid="layer-range-min"] input')
+    ).toBeEnabled();
+    await utils.selectLayout('Axial Only', 1, false);
     await expectDisplaySettings('-2.75', '100.25', '100.3');
     expect(await windowingLabels()).toEqual(baseWindowing);
     await expectRenderedPixels(appliedPixels);
   });
 
-  it('preserves transparent background and rendered colors when reopening a session', async () => {
+  test('preserves transparent background and rendered colors when reopening a session', async ({
+    page,
+    volview,
+    utils,
+    layerDisplay,
+  }) => {
+    const {
+      option,
+      moveToHeader,
+      saveScreenshot,
+      captureViewPixels,
+      expectDisplaySettings,
+      expectRenderedPixels,
+      openDisplayFixture,
+    } = createDisplayHelpers({ page, volview, utils, layerDisplay });
     await openDisplayFixture({ mappingRange: [0, 229.5] });
     await expectDisplaySettings('0', '229.5');
     const beforeTransparent = await captureViewPixels();
-    const restoredTransparent = $(
+    const restoredTransparent = page.locator(
       '[data-testid="layer-transparent-background"] input'
     );
-    await restoredTransparent.scrollIntoView({
-      block: 'center',
-      behavior: 'instant',
-    });
+    await restoredTransparent.evaluate((element) =>
+      element.scrollIntoView({ block: 'center', behavior: 'instant' })
+    );
     await restoredTransparent.click();
     await expect(restoredTransparent).toBeChecked();
     const tooltipId =
       await restoredTransparent.getAttribute('aria-describedby');
     expect(tooltipId).toBeTruthy();
-    await restoredTransparent.execute((input) => input.blur());
-    await $('header').moveTo();
-    await $(`[id="${tooltipId}"] .v-overlay__content`).waitForDisplayed({
-      reverse: true,
-      opacityProperty: false,
-    });
-    let transparentPixels = await captureViewPixels();
-    await browser.waitUntil(
-      async () => {
-        transparentPixels = await captureViewPixels();
-        return (
-          transparentPixels.length === 3 &&
-          transparentPixels.every(
-            ({ checksum }, index) =>
-              checksum !== beforeTransparent[index].checksum
-          )
-        );
-      },
-      {
-        timeoutMsg:
-          'Expected transparent background to update every view before saving',
-      }
+    await restoredTransparent.evaluate((input) =>
+      (input as HTMLInputElement).blur()
     );
-    const transparentSession = await volViewPage.saveSession();
-    await waitForDownload(
-      path.join(TEMP_DIR, transparentSession),
-      SESSION_SAVE_TIMEOUT
-    );
-    await openVolViewPage(transparentSession);
-    await openLayerDisplayControls();
+    await moveToHeader();
     await expect(
-      $('[data-testid="layer-transparent-background"] input')
-    ).toBeChecked();
-    await expectRenderedPixels(transparentPixels);
-
-    const select = $('[data-testid="layer-colormap"]');
-    await select.scrollIntoView({ block: 'center', behavior: 'instant' });
-    await select.click();
-    await expect($('[role="option"]*=Cool to Warm')).toHaveAttribute(
-      'aria-selected',
-      'true'
-    );
-    await browser.keys('Escape');
-    await browser.saveScreenshot(
-      path.join(TEMP_DIR, 'overlay-transparent-restored.png')
-    );
-  });
-
-  it('offers the curated palette inventory and renders Spring and Winter in every view', async () => {
-    await openDisplayFixture({
-      mappingRange: [0, 229.5],
-      transparentBackground: true,
-    });
-    const select = $('[data-testid="layer-colormap"]');
-    await select.scrollIntoView({
-      block: 'center',
-      behavior: 'instant',
-    });
-    await select.click();
-    await expectPaletteOptions();
-    await expect($('[role="option"]*=Cool to Warm')).toHaveAttribute(
-      'aria-selected',
-      'true'
-    );
-    for (const title of ['DICOM Spring', 'DICOM Winter']) {
-      await browser.keys('Escape');
-      await $('header').moveTo();
-      const beforePalette = await captureViewPixels();
-      await select.click();
-      const option = $(`[role="option"]*=${title}`);
-      await option.scrollIntoView({ block: 'center', behavior: 'instant' });
-      await option.waitForClickable();
-      await expect(
-        option.$('[data-testid="layer-palette-option-swatch"]')
-      ).toBeDisplayed();
-      await option.click();
-      await expect(select).toHaveText(expect.stringContaining(title));
-      await $('header').moveTo();
-      await browser.waitUntil(
+      page.locator(`[id="${tooltipId}"] .v-overlay__content`)
+    ).toBeHidden();
+    let transparentPixels = await captureViewPixels();
+    await expect
+      .poll(
         async () => {
-          const pixels = await captureViewPixels();
+          transparentPixels = await captureViewPixels();
           return (
-            pixels.length === 3 &&
-            pixels.every(
+            transparentPixels.length === 3 &&
+            transparentPixels.every(
               ({ checksum }, index) =>
-                checksum !== beforePalette[index].checksum
+                checksum !== beforeTransparent[index].checksum
             )
           );
         },
         {
-          timeoutMsg: `Expected ${title} to change colors in all three 2D views`,
+          message:
+            'Expected transparent background to update every view before saving',
         }
-      );
-      await select.click();
-      await expect($(`[role="option"]*=${title}`)).toHaveAttribute(
-        'aria-selected',
-        'true'
-      );
-    }
-    await browser.saveScreenshot(
-      path.join(TEMP_DIR, 'overlay-short-palette-menu.png')
+      )
+      .toBe(true);
+    const transparentSession = await volview.saveSession();
+    await utils.openVolViewPage(transparentSession);
+    await layerDisplay.openLayerDisplayControls();
+    await expect(
+      page.locator('[data-testid="layer-transparent-background"] input')
+    ).toBeChecked();
+    await expectRenderedPixels(transparentPixels);
+
+    const select = page.locator('[data-testid="layer-colormap"]');
+    await select.evaluate((element) =>
+      element.scrollIntoView({ block: 'center', behavior: 'instant' })
     );
-    await browser.keys('Escape');
-    expect(await volViewPage.getNotificationsCount()).toEqual(0);
+    await select.click();
+    await expect(option('Cool to Warm')).toHaveAttribute(
+      'aria-selected',
+      'true'
+    );
+    await page.keyboard.press('Escape');
+    await saveScreenshot('overlay-transparent-restored.png');
+  });
+
+  test('offers the curated palette inventory and renders Spring and Winter in every view', async ({
+    page,
+    volview,
+    utils,
+    layerDisplay,
+  }) => {
+    const {
+      option,
+      moveToHeader,
+      saveScreenshot,
+      expectPaletteOptions,
+      captureViewPixels,
+      openDisplayFixture,
+    } = createDisplayHelpers({ page, volview, utils, layerDisplay });
+    await openDisplayFixture({
+      mappingRange: [0, 229.5],
+      transparentBackground: true,
+    });
+    const select = page.locator('[data-testid="layer-colormap"]');
+    await select.evaluate((element) =>
+      element.scrollIntoView({ block: 'center', behavior: 'instant' })
+    );
+    await select.click();
+    await expectPaletteOptions();
+    await expect(option('Cool to Warm')).toHaveAttribute(
+      'aria-selected',
+      'true'
+    );
+    for (const title of ['DICOM Spring', 'DICOM Winter']) {
+      await page.keyboard.press('Escape');
+      await moveToHeader();
+      const beforePalette = await captureViewPixels();
+      await select.click();
+      const item = option(title);
+      await item.evaluate((element) =>
+        element.scrollIntoView({ block: 'center', behavior: 'instant' })
+      );
+      await expect(item).toBeVisible();
+      await expect(item).toBeEnabled();
+      await expect(
+        item.locator('[data-testid="layer-palette-option-swatch"]')
+      ).toBeVisible();
+      await item.click();
+      await expect(select).toContainText(title);
+      await moveToHeader();
+      await expect
+        .poll(
+          async () => {
+            const pixels = await captureViewPixels();
+            return (
+              pixels.length === 3 &&
+              pixels.every(
+                ({ checksum }, index) =>
+                  checksum !== beforePalette[index].checksum
+              )
+            );
+          },
+          {
+            message: `Expected ${title} to change colors in all three 2D views`,
+          }
+        )
+        .toBe(true);
+      await select.click();
+      await expect(option(title)).toHaveAttribute('aria-selected', 'true');
+    }
+    await saveScreenshot('overlay-short-palette-menu.png');
+    await page.keyboard.press('Escape');
+    expect(await volview.getNotificationsCount()).toEqual(0);
   });
 });

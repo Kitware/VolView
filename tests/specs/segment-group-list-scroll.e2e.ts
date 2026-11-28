@@ -1,31 +1,39 @@
-import { volViewPage } from '../pageobjects/volview.page';
-import { openUrls } from './utils';
+import { test, expect } from '../fixtures';
 import { PROSTATEX_DATASET } from '../datasets';
-import { addSegment, openAnnotationSegments } from './segmentationTestUtils';
 
 const SEGMENT_COUNT = 20;
 
-describe('Segment list', () => {
-  it('lets the module panel scroll when segments overflow it', async () => {
-    await openUrls([PROSTATEX_DATASET]);
-    await openAnnotationSegments();
+test.describe('Segment list', () => {
+  test('lets the module panel scroll when segments overflow it', async ({
+    page,
+    volview,
+    utils,
+    segmentation,
+  }) => {
+    await utils.openUrls([PROSTATEX_DATASET]);
+    await segmentation.openAnnotationSegments();
 
     for (let i = 0; i < SEGMENT_COUNT; i++) {
-      await addSegment();
+      await segmentation.addSegment();
     }
 
-    const list = await volViewPage.segmentList;
-    await list.waitForDisplayed();
+    const list = volview.segmentList;
+    await expect(list).toBeVisible();
 
-    const segments = await list.$$('.item-row .v-list-item-title');
-    expect(segments.length).toEqual(SEGMENT_COUNT);
+    await expect(list.locator('.item-row .v-list-item-title')).toHaveCount(
+      SEGMENT_COUNT
+    );
 
-    const panel = await $('#module-container');
-    const scrollHeight = Number(await panel.getProperty('scrollHeight'));
-    const clientHeight = Number(await panel.getProperty('clientHeight'));
+    const panel = page.locator('#module-container');
+    const { scrollHeight, clientHeight } = await panel.evaluate((element) => ({
+      scrollHeight: element.scrollHeight,
+      clientHeight: element.clientHeight,
+    }));
     expect(scrollHeight).toBeGreaterThan(clientHeight);
 
-    const overflowY = await panel.getCSSProperty('overflow-y');
-    expect(overflowY.value).toEqual('auto');
+    const overflowY = await panel.evaluate(
+      (element) => getComputedStyle(element).overflowY
+    );
+    expect(overflowY).toEqual('auto');
   });
 });

@@ -1,42 +1,56 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import { TEMP_DIR } from '../../wdio.shared.conf';
-import { volViewPage } from '../pageobjects/volview.page';
+import type { Page } from '@playwright/test';
+import { test, expect } from '../fixtures';
+import type { VolViewPage } from '../pageobjects/volview.page';
+import type { Scratch } from '../scratch';
 import { createRasterFixture } from './rasterThumbnailFixtures';
-import { writeManifestToFile } from './utils';
+import type { Utils } from './utils';
 
 type RGB = [number, number, number];
 
-async function openImages(names: string[], manifestName: string) {
+async function openImages(
+  {
+    volview,
+    utils,
+    scratch,
+  }: { volview: VolViewPage; utils: Utils; scratch: Scratch },
+  names: string[],
+  manifestName: string
+) {
   for (const name of names) {
-    fs.writeFileSync(path.join(TEMP_DIR, name), createRasterFixture(name));
+    scratch.writeFile(name, createRasterFixture(name));
   }
-  await writeManifestToFile(
+  await utils.writeManifestToFile(
     { resources: names.map((name) => ({ url: `/tmp/${name}`, name })) },
     manifestName
   );
-  await volViewPage.open(`?urls=[tmp/${manifestName}]`);
+  await volview.open(`?urls=[tmp/${manifestName}]`);
 }
 
-async function thumbnailPixels(name: string, points: [number, number][]) {
-  await browser.waitUntil(
-    () =>
-      browser.execute((imageName) => {
-        const card = Array.from(
-          document.querySelectorAll('.image-list-card')
-        ).find((element) => element.textContent?.includes(imageName));
-        const image = card?.querySelector('img');
-        return (
-          image instanceof HTMLImageElement &&
-          image.complete &&
-          image.naturalWidth > 0
-        );
-      }, name),
-    { timeoutMsg: `Expected a rendered thumbnail for ${name}` }
-  );
+async function thumbnailPixels(
+  page: Page,
+  name: string,
+  points: [number, number][]
+) {
+  await expect
+    .poll(
+      () =>
+        page.evaluate((imageName) => {
+          const card = Array.from(
+            document.querySelectorAll('.image-list-card')
+          ).find((element) => element.textContent?.includes(imageName));
+          const image = card?.querySelector('img');
+          return (
+            image instanceof HTMLImageElement &&
+            image.complete &&
+            image.naturalWidth > 0
+          );
+        }, name),
+      { message: `Expected a rendered thumbnail for ${name}` }
+    )
+    .toBe(true);
 
-  return browser.execute(
-    (imageName, locations) => {
+  return page.evaluate(
+    ({ imageName, locations }) => {
       const card = Array.from(
         document.querySelectorAll('.image-list-card')
       ).find((element) => element.textContent?.includes(imageName));
@@ -51,19 +65,27 @@ async function thumbnailPixels(name: string, points: [number, number][]) {
           Array.from(context.getImageData(x, y, 1, 1).data.slice(0, 3)) as RGB
       );
     },
-    name,
-    points
+    { imageName: name, locations: points }
   );
 }
 
-describe('raster image thumbnails', () => {
-  it('shows RGB PNG and JPEG colors and a grayscale gradient', async () => {
+test.describe('raster image thumbnails', () => {
+  test('shows RGB PNG and JPEG colors and a grayscale gradient', async ({
+    page,
+    volview,
+    utils,
+    scratch,
+  }) => {
     const names = [
       'rgb-thumbnail.png',
       'rgb-thumbnail.jpg',
       'gray-thumbnail.png',
     ];
-    await openImages(names, 'raster-thumbnail-manifest.json');
+    await openImages(
+      { volview, utils, scratch },
+      names,
+      'raster-thumbnail-manifest.json'
+    );
     const expected: RGB[] = [
       [128, 64, 64],
       [64, 128, 64],
@@ -71,7 +93,7 @@ describe('raster image thumbnails', () => {
       [32, 192, 64],
     ];
     for (const name of names.slice(0, 2)) {
-      const colors = (await thumbnailPixels(name, [
+      const colors = (await thumbnailPixels(page, name, [
         [25, 25],
         [75, 25],
         [25, 75],
@@ -86,7 +108,7 @@ describe('raster image thumbnails', () => {
       }
     }
 
-    const [dark, light] = await thumbnailPixels(names[2], [
+    const [dark, light] = await thumbnailPixels(page, names[2], [
       [15, 50],
       [85, 50],
     ]);
@@ -94,10 +116,20 @@ describe('raster image thumbnails', () => {
     expect(light[0]).toBeGreaterThan(170);
   });
 
-  it('composites RGBA pixels into the displayed thumbnail', async () => {
+  test('composites RGBA pixels into the displayed thumbnail', async ({
+    page,
+    volview,
+    utils,
+    scratch,
+  }) => {
     const name = 'rgba-thumbnail.png';
-    await openImages([name], 'rgba-thumbnail-manifest.json');
+    await openImages(
+      { volview, utils, scratch },
+      [name],
+      'rgba-thumbnail-manifest.json'
+    );
     const [opaque, partial, transparent, yellow] = (await thumbnailPixels(
+      page,
       name,
       [
         [25, 25],

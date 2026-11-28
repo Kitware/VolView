@@ -8,8 +8,8 @@
 // dependencies.
 import * as path from 'path';
 import * as fs from 'fs';
-import { volViewPage } from '../pageobjects/volview.page';
-import { TEMP_DIR } from '../../wdio.shared.conf';
+import { test, expect } from '../fixtures';
+import type { Utils } from './utils';
 import { buildSyntheticDicom, newUid } from './syntheticDicom';
 
 // Oblique ImageOrientationPatient — same value for both series. With
@@ -23,10 +23,14 @@ const SHARED_IMAGE_ORIENTATION_PATIENT = [
 const SLICE_COUNT = 5;
 const STUDY_UID = newUid();
 
-function writeSeries(label: 'A' | 'B', dirName: string, manifestName: string) {
+function writeSeries(
+  utils: Utils,
+  label: 'A' | 'B',
+  dirName: string,
+  manifestName: string
+) {
   const seriesUid = newUid();
-  const dir = path.join(TEMP_DIR, dirName);
-  fs.mkdirSync(dir, { recursive: true });
+  const dir = utils.makeTempDir(dirName);
 
   const resources: { url: string; name: string }[] = [];
   for (let i = 0; i < SLICE_COUNT; i++) {
@@ -44,26 +48,26 @@ function writeSeries(label: 'A' | 'B', dirName: string, manifestName: string) {
     resources.push({ url: `tmp/${dirName}/${filename}`, name: filename });
   }
 
-  fs.writeFileSync(
-    path.join(TEMP_DIR, manifestName),
-    JSON.stringify({ resources })
-  );
+  return utils.writeManifestToFile({ resources }, manifestName);
 }
 
-describe('Multi-series load: two series with identical ImageOrientationPatient', () => {
-  before(() => {
-    writeSeries('A', 'multi-series-A', 'multi-series-A.json');
-    writeSeries('B', 'multi-series-B', 'multi-series-B.json');
+test.describe('Multi-series load: two series with identical ImageOrientationPatient', () => {
+  test.beforeEach(async ({ utils }) => {
+    await writeSeries(utils, 'A', 'multi-series-A', 'multi-series-A.json');
+    await writeSeries(utils, 'B', 'multi-series-B', 'multi-series-B.json');
   });
 
-  it('keeps the two series separate (two volume cards)', async () => {
-    await volViewPage.open(
+  test('keeps the two series separate (two volume cards)', async ({
+    page,
+    volview,
+  }) => {
+    await volview.open(
       '?urls=[tmp/multi-series-A.json,tmp/multi-series-B.json]'
     );
-    await volViewPage.waitForViews();
-    await browser.waitUntil(
-      async () => (await $$('.volume-card').length) === 2,
-      { timeout: 30000, timeoutMsg: 'expected exactly two volume cards' }
-    );
+    await volview.waitForViews();
+    await expect(
+      page.locator('.volume-card'),
+      'expected exactly two volume cards'
+    ).toHaveCount(2);
   });
 });

@@ -1,81 +1,102 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { TEMP_DIR } from '../../wdio.shared.conf';
-import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
+import type { Page } from '@playwright/test';
+import { test, expect } from '../fixtures';
 import {
-  capture2DViewScreenshotMetrics,
-  makeTempDir,
-  openVolViewPage,
-  selectLayout,
-  SESSION_SAVE_TIMEOUT,
-  waitForDownload,
-  waitForModuleTransitions,
-  writeManifestToFile,
-  writeMetaImage,
-} from './utils';
+  containsText,
+  exactText,
+  setValueVueInput,
+  waitForTransitions,
+  type VolViewPage,
+} from '../pageobjects/volview.page';
+import type { Utils } from './utils';
 
-const layer = () => $('section[aria-label="contrast-target.nrrd"]');
-const other = () => $('section[aria-label="contrast-other.mha"]');
-const targetInput = (endpoint: string) =>
-  layer().$(`[data-testid="layer-range-${endpoint}"] input`);
-const visibility = () => layer().$('[data-testid="layer-visibility"]');
+const layer = (page: Page) =>
+  page.locator('section[aria-label="contrast-target.nrrd"]');
+const other = (page: Page) =>
+  page.locator('section[aria-label="contrast-other.mha"]');
+const targetInput = (page: Page, endpoint: string) =>
+  layer(page).locator(`[data-testid="layer-range-${endpoint}"] input`);
+const visibility = (page: Page) =>
+  layer(page).locator('[data-testid="layer-visibility"]');
 
-const appliedRange = async () =>
+const appliedRange = async (page: Page) =>
   Promise.all(
     ['min', 'max'].map(async (endpoint) =>
-      Number(await targetInput(endpoint).getAttribute('title'))
+      Number(await targetInput(page, endpoint).getAttribute('title'))
     )
   );
 
-const pixels = () =>
-  capture2DViewScreenshotMetrics('overlay-auto-contrast.png');
+const pixels = (utils: Utils) =>
+  utils.capture2DViewScreenshotMetrics('overlay-auto-contrast.png');
 
-async function openContrast() {
-  const trigger = layer().$('[data-testid="layer-contrast"]');
-  await trigger.scrollIntoView({ block: 'center', behavior: 'instant' });
+const moveToHeader = (page: Page, utils: Utils) =>
+  utils.moveToElement(page.locator('header'));
+
+async function openContrast(page: Page) {
+  const trigger = layer(page).locator('[data-testid="layer-contrast"]');
+  await trigger.evaluate((element) =>
+    element.scrollIntoView({ block: 'center', behavior: 'instant' })
+  );
   await trigger.click();
-  await $('[data-testid="layer-contrast-menu"]').waitForStable();
+  await waitForTransitions(page.locator('[data-testid="layer-contrast-menu"]'));
 }
 
-async function chooseContrast(option: string) {
-  await openContrast();
-  const item = $(`[data-testid="layer-contrast-${option}"]`);
+async function chooseContrast(page: Page, option: string) {
+  await openContrast(page);
+  const item = page.locator(`[data-testid="layer-contrast-${option}"]`);
   await expect(item).not.toHaveAttribute('aria-disabled', 'true');
   await item.click();
-  await expect($('[data-testid="layer-contrast-menu"]')).not.toBeDisplayed();
+  await expect(
+    page.locator('[data-testid="layer-contrast-menu"]')
+  ).toBeHidden();
 }
 
-async function unrelatedSettings() {
+async function unrelatedSettings(page: Page) {
   return {
-    baseMin: await $('[data-testid="base-image-range-min"] input').getAttribute(
-      'title'
-    ),
-    baseMax: await $('[data-testid="base-image-range-max"] input').getAttribute(
-      'title'
-    ),
-    basePalette: await $('[data-testid="base-image-colormap"]').getText(),
-    palette: await layer().$('[data-testid="layer-colormap"]').getText(),
-    opacity: await layer()
-      .$('[data-testid="layer-opacity-slider"] input')
-      .getValue(),
-    transparent: await layer()
-      .$('[data-testid="layer-transparent-background"] input')
-      .isSelected(),
-    otherMin: await other()
-      .$('[data-testid="layer-range-min"] input')
+    baseMin: await page
+      .locator('[data-testid="base-image-range-min"] input')
       .getAttribute('title'),
-    otherMax: await other()
-      .$('[data-testid="layer-range-max"] input')
+    baseMax: await page
+      .locator('[data-testid="base-image-range-max"] input')
       .getAttribute('title'),
-    otherPalette: await other().$('[data-testid="layer-colormap"]').getText(),
-    otherOpacity: await other()
-      .$('[data-testid="layer-opacity-slider"] input')
-      .getValue(),
+    basePalette: await page
+      .locator('[data-testid="base-image-colormap"]')
+      .innerText(),
+    palette: await layer(page)
+      .locator('[data-testid="layer-colormap"]')
+      .innerText(),
+    opacity: await layer(page)
+      .locator('[data-testid="layer-opacity-slider"] input')
+      .inputValue(),
+    transparent: await layer(page)
+      .locator('[data-testid="layer-transparent-background"] input')
+      .isChecked(),
+    otherMin: await other(page)
+      .locator('[data-testid="layer-range-min"] input')
+      .getAttribute('title'),
+    otherMax: await other(page)
+      .locator('[data-testid="layer-range-max"] input')
+      .getAttribute('title'),
+    otherPalette: await other(page)
+      .locator('[data-testid="layer-colormap"]')
+      .innerText(),
+    otherOpacity: await other(page)
+      .locator('[data-testid="layer-opacity-slider"] input')
+      .inputValue(),
   };
 }
 
-async function openContrastFixture() {
-  const dir = makeTempDir('overlay-contrast');
+async function openContrastFixture({
+  page,
+  volview,
+  utils,
+}: {
+  page: Page;
+  volview: VolViewPage;
+  utils: Utils;
+}) {
+  const dir = utils.makeTempDir('overlay-contrast');
   const header = [
     'NRRD0005',
     'type: short',
@@ -93,9 +114,15 @@ async function openContrastFixture() {
     join(dir, 'contrast-target.nrrd'),
     `${header}\n\n${values.join(' ')}`
   );
-  const base = writeMetaImage('contrast-base.mha', { size: 32, step: 17 });
-  const second = writeMetaImage('contrast-other.mha', { size: 32, step: 29 });
-  await writeManifestToFile(
+  const base = utils.writeMetaImage('contrast-base.mha', {
+    size: 32,
+    step: 17,
+  });
+  const second = utils.writeMetaImage('contrast-other.mha', {
+    size: 32,
+    step: 29,
+  });
+  await utils.writeManifestToFile(
     {
       version: '7.0.0',
       dataSources: [base, 'overlay-contrast/contrast-target.nrrd', second].map(
@@ -131,181 +158,236 @@ async function openContrastFixture() {
     },
     'overlay-auto-contrast.json'
   );
-  await openVolViewPage('overlay-auto-contrast.json');
-  await $(`.image-list-card*=${base}`)
-    .$('[data-testid="dataset-menu-button"]')
+  await utils.openVolViewPage('overlay-auto-contrast.json');
+  await page
+    .locator('.image-list-card', { hasText: containsText(base) })
+    .locator('[data-testid="dataset-menu-button"]')
     .click();
-  await $('.v-list-item*=Show in all views').waitForClickable();
-  await $('.v-menu.v-overlay--active .v-overlay__content').waitForStable();
-  await $('.v-list-item*=Show in all views').click();
-  await browser.keys('Escape');
-  await volViewPage.renderingModuleTab.click();
-  await $('[data-testid="volume-rendering-toggle"]').click();
-  await waitForModuleTransitions();
-  await browser.waitUntil(
-    async () => (await $$('.Vue-Toastification__toast').length) === 0
+  const showInAllViews = page.locator('.v-list-item', {
+    hasText: containsText('Show in all views'),
+  });
+  await expect(showInAllViews).toBeVisible();
+  await expect(showInAllViews).toBeEnabled();
+  await waitForTransitions(
+    page.locator('.v-menu.v-overlay--active .v-overlay__content')
   );
-  await expect(targetInput('min')).toHaveAttribute('title', '-2000');
+  await showInAllViews.click();
+  await page.keyboard.press('Escape');
+  await volview.renderingModuleTab.click();
+  await page.locator('[data-testid="volume-rendering-toggle"]').click();
+  await utils.waitForModuleTransitions();
+  await expect(page.locator('.Vue-Toastification__toast')).toHaveCount(0);
+  await expect(targetInput(page, 'min')).toHaveAttribute('title', '-2000');
 }
 
-describe('Overlay automatic contrast', () => {
-  it('shows contrast choices between the range inputs and applies the full range', async () => {
-    await openContrastFixture();
-    const trigger = layer().$('[data-testid="layer-contrast"]');
-    await expect(trigger.$('.mdi-circle-half-full')).toExist();
-    await expect(trigger.$('.mdi-menu-down')).toExist();
-    const minX = (await targetInput('min').getLocation()).x;
-    const maxX = (await targetInput('max').getLocation()).x;
-    const triggerX = (await trigger.getLocation()).x;
+test.describe('Overlay automatic contrast', () => {
+  test('shows contrast choices between the range inputs and applies the full range', async ({
+    page,
+    volview,
+    utils,
+    scratch,
+  }) => {
+    await openContrastFixture({ page, volview, utils });
+    const trigger = layer(page).locator('[data-testid="layer-contrast"]');
+    await expect(trigger.locator('.mdi-circle-half-full')).toBeAttached();
+    await expect(trigger.locator('.mdi-menu-down')).toBeAttached();
+    const minX = (await targetInput(page, 'min').boundingBox())!.x;
+    const maxX = (await targetInput(page, 'max').boundingBox())!.x;
+    const triggerX = (await trigger.boundingBox())!.x;
     expect(triggerX).toBeGreaterThan(minX);
     expect(triggerX).toBeLessThan(maxX);
-    const unchanged = await unrelatedSettings();
-    await openContrast();
-    expect(await appliedRange()).toEqual([-2000, -1000]);
-    const menu = $('[data-testid="layer-contrast-menu"]');
+    const unchanged = await unrelatedSettings(page);
+    await openContrast(page);
+    expect(await appliedRange(page)).toEqual([-2000, -1000]);
+    const menu = page.locator('[data-testid="layer-contrast-menu"]');
     await expect(menu).toHaveText(
-      'Full Range\nLow Contrast\nMedium Contrast\nHigh Contrast'
+      'Full Range\nLow Contrast\nMedium Contrast\nHigh Contrast',
+      { useInnerText: true }
     );
-    await browser.saveScreenshot(
-      join(TEMP_DIR, 'overlay-contrast-controls.png')
-    );
-    await expect(menu.$('input')).not.toExist();
-    await expect(menu.$('label=Bones')).not.toExist();
-    await $('[data-testid="layer-contrast-FullRange"]').click();
-    await expect(targetInput('min')).toHaveAttribute('title', '0');
-    await expect(targetInput('max')).toHaveAttribute('title', '1000');
-    expect(await unrelatedSettings()).toEqual(unchanged);
+    await page.screenshot({
+      path: scratch.track(scratch.path('overlay-contrast-controls.png')),
+    });
+    await expect(menu.locator('input')).not.toBeAttached();
+    await expect(
+      menu.locator('label', { hasText: exactText('Bones') })
+    ).not.toBeAttached();
+    await page.locator('[data-testid="layer-contrast-FullRange"]').click();
+    await expect(targetInput(page, 'min')).toHaveAttribute('title', '0');
+    await expect(targetInput(page, 'max')).toHaveAttribute('title', '1000');
+    expect(await unrelatedSettings(page)).toEqual(unchanged);
   });
 
-  it('uses its resampled histogram for progressively narrower contrast in every slice', async () => {
-    await openContrastFixture();
-    const unchanged = await unrelatedSettings();
-    await chooseContrast('FullRange');
+  test('uses its resampled histogram for progressively narrower contrast in every slice', async ({
+    page,
+    volview,
+    utils,
+  }) => {
+    await openContrastFixture({ page, volview, utils });
+    const unchanged = await unrelatedSettings(page);
+    await chooseContrast(page, 'FullRange');
     const widths: number[] = [];
     for (const choice of ['LowContrast', 'MediumContrast', 'HighContrast']) {
-      await $('header').moveTo();
-      const before = await pixels();
-      await chooseContrast(choice);
-      const [min, max] = await appliedRange();
+      await moveToHeader(page, utils);
+      const before = await pixels(utils);
+      await chooseContrast(page, choice);
+      const [min, max] = await appliedRange(page);
       // Resampling adds over 5% zero padding; source percentiles start above 200.
       expect(min).toBe(0);
       expect(max).toBeLessThanOrEqual(1000);
       expect(max).toBeGreaterThan(min);
       widths.push(max - min);
-      await $('header').moveTo();
-      await browser.waitUntil(
-        async () => {
-          const after = await pixels();
-          return (
-            after.length === 3 &&
-            after.every((view, i) => view.checksum !== before[i].checksum)
-          );
-        },
-        {
-          timeoutMsg:
-            'Expected overlay contrast to change every slice rendering',
-        }
-      );
-      expect(await unrelatedSettings()).toEqual(unchanged);
+      await moveToHeader(page, utils);
+      await expect
+        .poll(
+          async () => {
+            const after = await pixels(utils);
+            return (
+              after.length === 3 &&
+              after.every((view, i) => view.checksum !== before[i].checksum)
+            );
+          },
+          {
+            message:
+              'Expected overlay contrast to change every slice rendering',
+          }
+        )
+        .toBe(true);
+      expect(await unrelatedSettings(page)).toEqual(unchanged);
     }
     expect(widths[0]).toBeGreaterThan(widths[1]);
     expect(widths[1]).toBeGreaterThan(widths[2]);
   });
 
-  it('resets edited ranges and invalid drafts without changing other display settings', async () => {
-    await openContrastFixture();
-    const unchanged = await unrelatedSettings();
-    await chooseContrast('FullRange');
-    await setValueVueInput(targetInput('min'), '-2000');
-    await setValueVueInput(targetInput('max'), '-1000');
-    await browser.keys('Enter');
-    await chooseContrast('FullRange');
-    expect(await appliedRange()).toEqual([0, 1000]);
-    await setValueVueInput(targetInput('min'), '-');
-    await browser.keys('Enter');
-    await expect(
-      layer().$('[data-testid="layer-range-status"]')
-    ).toBeDisplayed();
-    await chooseContrast('FullRange');
-    await expect(targetInput('min')).toHaveValue('0');
-    await expect(targetInput('max')).toHaveValue('1000');
-    await expect(layer().$('[data-testid="layer-range-status"]')).not.toExist();
-    expect(await unrelatedSettings()).toEqual(unchanged);
+  test('resets edited ranges and invalid drafts without changing other display settings', async ({
+    page,
+    volview,
+    utils,
+  }) => {
+    await openContrastFixture({ page, volview, utils });
+    const unchanged = await unrelatedSettings(page);
+    await chooseContrast(page, 'FullRange');
+    await setValueVueInput(targetInput(page, 'min'), '-2000');
+    await setValueVueInput(targetInput(page, 'max'), '-1000');
+    await page.keyboard.press('Enter');
+    await chooseContrast(page, 'FullRange');
+    expect(await appliedRange(page)).toEqual([0, 1000]);
+    await setValueVueInput(targetInput(page, 'min'), '-');
+    await page.keyboard.press('Enter');
+    const status = layer(page).locator('[data-testid="layer-range-status"]');
+    await expect(status).toBeVisible();
+    await chooseContrast(page, 'FullRange');
+    await expect(targetInput(page, 'min')).toHaveValue('0');
+    await expect(targetInput(page, 'max')).toHaveValue('1000');
+    await expect(status).not.toBeAttached();
+    expect(await unrelatedSettings(page)).toEqual(unchanged);
   });
 
-  it('hides and restores the overlay in every slice without changing display settings', async () => {
-    await openContrastFixture();
-    const unchanged = await unrelatedSettings();
-    await chooseContrast('FullRange');
-    await expect(visibility()).toHaveText(expect.stringContaining('HIDE'));
-    expect((await visibility().getLocation()).x).toBeLessThan(
-      (await layer().$('[data-testid="layer-colormap"]').getLocation()).x
-    );
-    expect((await visibility().getCSSProperty('border-radius')).value).toBe(
-      (
-        await layer()
-          .$('[data-testid="layer-contrast"]')
-          .getCSSProperty('border-radius')
-      ).value
-    );
-    await expect(visibility().$('.mdi-eye')).toExist();
-    await $('header').moveTo();
-    const shown = await pixels();
-    await visibility().scrollIntoView({ block: 'center', behavior: 'instant' });
-    await visibility().click();
-    await expect(visibility()).toHaveText(expect.stringContaining('SHOW'));
-    await expect(visibility().$('.mdi-eye-off')).toExist();
-    await $('header').moveTo();
-    await browser.waitUntil(async () => {
-      const hidden = await pixels();
-      return (
-        hidden.length === 3 &&
-        hidden.every((view, i) => view.checksum !== shown[i].checksum)
-      );
+  test('hides and restores the overlay in every slice without changing display settings', async ({
+    page,
+    volview,
+    utils,
+  }) => {
+    await openContrastFixture({ page, volview, utils });
+    const unchanged = await unrelatedSettings(page);
+    await chooseContrast(page, 'FullRange');
+    await expect(visibility(page)).toContainText('HIDE', {
+      useInnerText: true,
     });
-    expect(await unrelatedSettings()).toEqual(unchanged);
-    await visibility().click();
-    await $('header').moveTo();
-    await browser.waitUntil(async () => {
-      const restored = await pixels();
-      return (
-        restored.length === 3 &&
-        restored.every((view, i) => view.checksum === shown[i].checksum)
-      );
+    expect((await visibility(page).boundingBox())!.x).toBeLessThan(
+      (await layer(page)
+        .locator('[data-testid="layer-colormap"]')
+        .boundingBox())!.x
+    );
+    const borderRadius = (element: Element) =>
+      getComputedStyle(element).borderRadius;
+    expect(await visibility(page).evaluate(borderRadius)).toBe(
+      await layer(page)
+        .locator('[data-testid="layer-contrast"]')
+        .evaluate(borderRadius)
+    );
+    await expect(visibility(page).locator('.mdi-eye')).toBeAttached();
+    await moveToHeader(page, utils);
+    const shown = await pixels(utils);
+    await visibility(page).evaluate((element) =>
+      element.scrollIntoView({ block: 'center', behavior: 'instant' })
+    );
+    await visibility(page).click();
+    await expect(visibility(page)).toContainText('SHOW', {
+      useInnerText: true,
     });
-    expect(await unrelatedSettings()).toEqual(unchanged);
+    await expect(visibility(page).locator('.mdi-eye-off')).toBeAttached();
+    await moveToHeader(page, utils);
+    await expect
+      .poll(async () => {
+        const hidden = await pixels(utils);
+        return (
+          hidden.length === 3 &&
+          hidden.every((view, i) => view.checksum !== shown[i].checksum)
+        );
+      })
+      .toBe(true);
+    expect(await unrelatedSettings(page)).toEqual(unchanged);
+    await visibility(page).click();
+    await moveToHeader(page, utils);
+    await expect
+      .poll(async () => {
+        const restored = await pixels(utils);
+        return (
+          restored.length === 3 &&
+          restored.every((view, i) => view.checksum === shown[i].checksum)
+        );
+      })
+      .toBe(true);
+    expect(await unrelatedSettings(page)).toEqual(unchanged);
   });
 
-  it('preserves hidden overlay settings through layout changes and a saved session', async () => {
-    await openContrastFixture();
-    const unchanged = await unrelatedSettings();
-    await chooseContrast('FullRange');
-    await visibility().scrollIntoView({ block: 'center', behavior: 'instant' });
-    await visibility().click();
-    await selectLayout('Axial Only', 1, false);
-    await expect(visibility()).toHaveText(expect.stringContaining('SHOW'));
-    expect(await unrelatedSettings()).toEqual(unchanged);
-    const saved = await volViewPage.saveSession();
-    await waitForDownload(join(TEMP_DIR, saved), SESSION_SAVE_TIMEOUT);
-    await openVolViewPage(saved);
-    await volViewPage.renderingModuleTab.click();
-    await visibility().scrollIntoView({ block: 'center', behavior: 'instant' });
-    await expect(visibility()).toHaveText(expect.stringContaining('SHOW'));
-    await selectLayout('Four Up', 3, true);
-    await expect(visibility()).toHaveText(expect.stringContaining('SHOW'));
-    expect(await unrelatedSettings()).toEqual(unchanged);
-    await $('header').moveTo();
-    const hidden = await pixels();
-    await visibility().click();
-    await expect(visibility()).toHaveText(expect.stringContaining('HIDE'));
-    await $('header').moveTo();
-    await browser.waitUntil(async () => {
-      const restored = await pixels();
-      return (
-        restored.length === 3 &&
-        restored.every((view, i) => view.checksum !== hidden[i].checksum)
-      );
+  test('preserves hidden overlay settings through layout changes and a saved session', async ({
+    page,
+    volview,
+    utils,
+  }) => {
+    await openContrastFixture({ page, volview, utils });
+    const unchanged = await unrelatedSettings(page);
+    await chooseContrast(page, 'FullRange');
+    await visibility(page).evaluate((element) =>
+      element.scrollIntoView({ block: 'center', behavior: 'instant' })
+    );
+    await visibility(page).click();
+    await utils.selectLayout('Axial Only', 1, false);
+    await expect(visibility(page)).toContainText('SHOW', {
+      useInnerText: true,
     });
-    expect(await unrelatedSettings()).toEqual(unchanged);
+    expect(await unrelatedSettings(page)).toEqual(unchanged);
+    const saved = await volview.saveSession();
+    await utils.openVolViewPage(saved);
+    await volview.renderingModuleTab.click();
+    await visibility(page).evaluate((element) =>
+      element.scrollIntoView({ block: 'center', behavior: 'instant' })
+    );
+    await expect(visibility(page)).toContainText('SHOW', {
+      useInnerText: true,
+    });
+    await utils.selectLayout('Four Up', 3, true);
+    await expect(visibility(page)).toContainText('SHOW', {
+      useInnerText: true,
+    });
+    expect(await unrelatedSettings(page)).toEqual(unchanged);
+    await moveToHeader(page, utils);
+    const hidden = await pixels(utils);
+    await visibility(page).click();
+    await expect(visibility(page)).toContainText('HIDE', {
+      useInnerText: true,
+    });
+    await moveToHeader(page, utils);
+    await expect
+      .poll(async () => {
+        const restored = await pixels(utils);
+        return (
+          restored.length === 3 &&
+          restored.every((view, i) => view.checksum !== hidden[i].checksum)
+        );
+      })
+      .toBe(true);
+    expect(await unrelatedSettings(page)).toEqual(unchanged);
   });
 });

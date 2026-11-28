@@ -1,24 +1,10 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import JSZip from 'jszip';
-import { TEMP_DIR } from '../../wdio.shared.conf';
-import { volViewPage } from '../pageobjects/volview.page';
-import {
-  openThroughDialog,
-  waitForModuleTransitions,
-  writeManifestToFile,
-} from './utils';
-import {
-  openAnnotationSegments,
-  segmentColor,
-  segmentNames,
-  waitForNamedSegments,
-  waitForSegmentContent,
-} from './segmentationTestUtils';
+import { test, expect } from '../fixtures';
+import type { Scratch } from '../scratch';
 
 const SIZE = 16;
 const STEM = 'restore-binds-names';
-const CONFIGURED_COLOR = 'rgba(255,0,0,1)';
+const CONFIGURED_COLOR = 'rgb(255, 0, 0)';
 
 const nrrd = (data: Uint8Array) =>
   Buffer.concat([
@@ -28,7 +14,7 @@ const nrrd = (data: Uint8Array) =>
     data,
   ]);
 
-const writeSession = async () => {
+const writeSession = async (scratch: Scratch) => {
   const zip = new JSZip();
   zip.file('tumor-mask.nrrd', nrrd(new Uint8Array(SIZE ** 3).fill(1)));
   zip.file(
@@ -60,46 +46,52 @@ const writeSession = async () => {
       ],
     })
   );
-  const sessionPath = path.join(TEMP_DIR, `${STEM}.volview.zip`);
-  fs.writeFileSync(
-    sessionPath,
+  return scratch.writeFile(
+    `${STEM}.volview.zip`,
     await zip.generateAsync({ type: 'nodebuffer' })
   );
-  return sessionPath;
 };
 
-describe('Restoring a session beside a configured image', () => {
-  it('writes the config onto a restored same-named segment and keeps each image its own', async () => {
+test.describe('Restoring a session beside a configured image', () => {
+  test('writes the config onto a restored same-named segment and keeps each image its own', async ({
+    page,
+    scratch,
+    volview,
+    utils,
+    segmentation,
+  }) => {
     const parent = new Uint8Array(SIZE ** 3).map((_, offset) => offset % 251);
-    fs.writeFileSync(path.join(TEMP_DIR, `${STEM}.nrrd`), nrrd(parent));
-    await writeManifestToFile(
+    scratch.writeFile(`${STEM}.nrrd`, nrrd(parent));
+    await utils.writeManifestToFile(
       { segments: { Tumor: { color: '#ff0000' } } },
       `${STEM}-config.json`
     );
-    await volViewPage.open(`?urls=[tmp/${STEM}-config.json,tmp/${STEM}.nrrd]`);
-    await volViewPage.waitForViews();
-    await openAnnotationSegments();
-    await waitForNamedSegments();
-    expect(await segmentNames()).toEqual(['Tumor']);
-    expect(await segmentColor('Tumor')).toEqual(CONFIGURED_COLOR);
+    await volview.open(`?urls=[tmp/${STEM}-config.json,tmp/${STEM}.nrrd]`);
+    await volview.waitForViews();
+    await segmentation.openAnnotationSegments();
+    await segmentation.waitForNamedSegments();
+    expect(await segmentation.segmentNames()).toEqual(['Tumor']);
+    expect(await segmentation.segmentColor('Tumor')).toEqual(CONFIGURED_COLOR);
 
-    await openThroughDialog(await writeSession());
+    await utils.openThroughDialog(await writeSession(scratch));
 
-    await waitForSegmentContent('Tumor');
-    expect(await segmentNames()).toEqual(['Tumor']);
-    expect(await segmentColor('Tumor')).toEqual(CONFIGURED_COLOR);
-    await $('button[data-testid="module-tab-Data"]').click();
-    await waitForModuleTransitions();
-    const cards = await $$('.image-list-card');
-    expect(cards.length).toEqual(2);
-    await cards[0].click();
-    await openAnnotationSegments();
+    await segmentation.waitForSegmentContent('Tumor');
+    expect(await segmentation.segmentNames()).toEqual(['Tumor']);
+    expect(await segmentation.segmentColor('Tumor')).toEqual(CONFIGURED_COLOR);
+    await page.locator('button[data-testid="module-tab-Data"]').click();
+    await utils.waitForModuleTransitions();
+    const cards = page.locator('.image-list-card');
+    await expect(cards).toHaveCount(2);
+    await cards.nth(0).click();
+    await segmentation.openAnnotationSegments();
     // Both images share a file name; only the configured one's Tumor is empty.
     await expect(
-      $('[data-testid="segment-list"] [data-testid="reveal-segment-button"]')
+      page.locator(
+        '[data-testid="segment-list"] [data-testid="reveal-segment-button"]'
+      )
     ).toBeDisabled();
-    expect(await segmentNames()).toEqual(['Tumor']);
-    expect(await segmentColor('Tumor')).toEqual(CONFIGURED_COLOR);
-    expect(await volViewPage.getNotificationsCount()).toEqual(0);
+    expect(await segmentation.segmentNames()).toEqual(['Tumor']);
+    expect(await segmentation.segmentColor('Tumor')).toEqual(CONFIGURED_COLOR);
+    expect(await volview.getNotificationsCount()).toEqual(0);
   });
 });

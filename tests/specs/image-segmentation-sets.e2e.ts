@@ -1,40 +1,11 @@
 import path from 'node:path';
 import { writeFileSync } from 'node:fs';
-import { TEMP_DIR } from '../../wdio.shared.conf';
-import { volViewPage } from '../pageobjects/volview.page';
-import {
-  openThroughDialog,
-  overlayOption,
-  makeTempDir,
-  SESSION_SAVE_TIMEOUT,
-  waitForDownload,
-  waitForModuleTransitions,
-  writeMetaImage,
-  writeManifestToFile,
-} from './utils';
-import {
-  addSegment,
-  clickImageCard,
-  copySegmentsFrom,
-  copySegmentsRow,
-  copySource,
-  createSegmentRow,
-  deleteSegment,
-  dropImageOnView,
-  lockSegment,
-  openAnnotationSegments,
-  openCopySegmentsMenu,
-  recolorSegment,
-  renameSegment,
-  segmentColor,
-  segmentNames,
-  segmentRow,
-  selectedSegmentName,
-  selectSegment,
-  tooltipOf,
-  waitForSegmentContent,
-  segmentImageName,
-} from './segmentationTestUtils';
+import type { Page } from '@playwright/test';
+import { test, expect } from '../fixtures';
+import type { VolViewPage } from '../pageobjects/volview.page';
+import type { Scratch } from '../scratch';
+import type { SegmentationUtils } from './segmentationTestUtils';
+import type { Utils } from './utils';
 import {
   buildSyntheticCineDicom,
   buildSyntheticDicom,
@@ -44,64 +15,85 @@ import {
 const FIRST = 'segment-owner-a.mha';
 const SECOND = 'segment-owner-b.mha';
 const THIRD = 'segment-owner-c.mha';
-const volumeCards = () => $$('.image-list-card');
-const active2DView = () =>
-  $('.grid-item[style*="mediumseagreen"] [data-testid~="vtk-two-view"]');
 
-const showImage = async (name: string) => {
-  await clickImageCard(name);
-  await openAnnotationSegments();
-  await volViewPage.waitForLoadingIndicator(active2DView());
+type Helpers = {
+  page: Page;
+  volview: VolViewPage;
+  utils: Utils;
+  segmentation: SegmentationUtils;
+  scratch: Scratch;
+};
+
+const volumeCards = (page: Page) => page.locator('.image-list-card');
+const active2DView = (page: Page) =>
+  page.locator(
+    '.grid-item[style*="mediumseagreen"] [data-testid~="vtk-two-view"]'
+  );
+
+const showImage = async (
+  { page, volview, segmentation }: Helpers,
+  name: string
+) => {
+  await segmentation.clickImageCard(name);
+  await segmentation.openAnnotationSegments();
+  await volview.waitForLoadingIndicator(active2DView(page));
 };
 
 // The restored Paint tool switches the side panel to Annotations once applied.
-const restorePaintSession = async (savedPath: string) => {
-  await openThroughDialog(savedPath);
-  await volViewPage.waitForViews();
-  await expect($('[data-testid="module-tab-Annotations"]')).toHaveAttribute(
-    'aria-selected',
-    'true'
-  );
+const restorePaintSession = async (
+  { page, volview, utils }: Helpers,
+  savedPath: string
+) => {
+  await utils.openThroughDialog(savedPath);
+  await volview.waitForViews();
+  await expect(
+    page.locator('[data-testid="module-tab-Annotations"]')
+  ).toHaveAttribute('aria-selected', 'true');
 };
 
-const paint = async () => {
-  const view = active2DView();
-  await view.waitForDisplayed();
-  await volViewPage.paintStrokeOnView(view);
+const paint = async ({ page, volview }: Helpers) => {
+  const view = active2DView(page);
+  await expect(view).toBeVisible();
+  await volview.paintStrokeOnView(view);
 };
 
-const expectSegments = async (names: string[]) => {
-  await browser.waitUntil(
-    async () => JSON.stringify(await segmentNames()) === JSON.stringify(names),
-    { timeoutMsg: `Expected segment list ${names.join(', ')}` }
-  );
-  expect(await segmentNames()).toEqual(names);
+const expectSegments = async ({ segmentation }: Helpers, names: string[]) => {
+  await expect
+    .poll(segmentation.segmentNames, {
+      message: `Expected segment list ${names.join(', ')}`,
+    })
+    .toEqual(names);
 };
 
-const openImages = async () => {
-  writeMetaImage(FIRST, { size: 32, step: 3 });
-  writeMetaImage(SECOND, { size: 32, step: 5 });
-  await volViewPage.open(`?urls=[tmp/${FIRST}]`);
-  await volViewPage.waitForViews();
-  await openThroughDialog(path.join(TEMP_DIR, SECOND));
-  await browser.waitUntil(async () => (await volumeCards().length) === 2);
-  await showImage(FIRST);
+const openImages = async (helpers: Helpers) => {
+  const { page, volview, utils, scratch } = helpers;
+  utils.writeMetaImage(FIRST, { size: 32, step: 3 });
+  utils.writeMetaImage(SECOND, { size: 32, step: 5 });
+  await volview.open(`?urls=[tmp/${FIRST}]`);
+  await volview.waitForViews();
+  await utils.openThroughDialog(scratch.path(SECOND));
+  await expect(volumeCards(page)).toHaveCount(2);
+  await showImage(helpers, FIRST);
 };
 
-const createSourceDefinitions = async () => {
-  await volViewPage.activatePaint();
-  await paint();
-  await openAnnotationSegments();
-  await addSegment();
-  await renameSegment('Segment 2', 'Liver');
-  await renameSegment('Segment 1', 'Tumor');
-  await selectSegment('Tumor');
-  await waitForSegmentContent('Tumor');
+const createSourceDefinitions = async (helpers: Helpers) => {
+  const { volview, segmentation } = helpers;
+  await volview.activatePaint();
+  await paint(helpers);
+  await segmentation.openAnnotationSegments();
+  await segmentation.addSegment();
+  await segmentation.renameSegment('Segment 2', 'Liver');
+  await segmentation.renameSegment('Segment 1', 'Tumor');
+  await segmentation.selectSegment('Tumor');
+  await segmentation.waitForSegmentContent('Tumor');
 };
 
-const openSparseSession = async (activeView?: string) => {
-  writeMetaImage(THIRD, { size: 32, step: 7 });
-  const manifest = await writeManifestToFile(
+const openSparseSession = async (
+  { utils, segmentation }: Helpers,
+  activeView?: string
+) => {
+  utils.writeMetaImage(THIRD, { size: 32, step: 7 });
+  const manifest = await utils.writeManifestToFile(
     {
       version: '8.0.0',
       datasets: [{ id: 'restored', dataSourceId: 1 }],
@@ -110,15 +102,22 @@ const openSparseSession = async (activeView?: string) => {
     },
     'segment-owner-sparse.volview.json'
   );
-  await openThroughDialog(manifest);
-  await openAnnotationSegments();
-  await expect(segmentImageName()).toHaveText(THIRD);
+  await utils.openThroughDialog(manifest);
+  await segmentation.openAnnotationSegments();
+  await expect(segmentation.segmentImageName()).toHaveText(THIRD);
 };
 
-describe('Image segmentation sets', () => {
-  it('keeps configured definitions independent for two DICOM series and cine imported together', async () => {
+test.describe('Image segmentation sets', () => {
+  test('keeps configured definitions independent for two DICOM series and cine imported together', async ({
+    page,
+    volview,
+    utils,
+    segmentation,
+    scratch,
+  }) => {
+    const h = { page, volview, utils, segmentation, scratch };
     const folder = 'segment-owner-dicom-batch';
-    const directory = makeTempDir(folder);
+    const directory = utils.makeTempDir(folder);
     const studyUid = newUid();
     const resources: string[] = [];
     for (const seriesNumber of [101, 202]) {
@@ -159,94 +158,116 @@ describe('Image segmentation sets', () => {
       JSON.stringify({ segments: { Tumor: { color: 'red' }, Liver: {} } })
     );
     resources.push(`tmp/${folder}/cine.dcm`, `tmp/${folder}/config.json`);
-    await volViewPage.open(`?urls=[${resources.join(',')}]`);
-    await volViewPage.waitForViews();
-    await expect($$('.volume-card')).toBeElementsArrayOfSize(3);
+    await volview.open(`?urls=[${resources.join(',')}]`);
+    await volview.waitForViews();
+    await expect(page.locator('.volume-card')).toHaveCount(3);
 
     const showSeries = async (name: string) => {
-      await $('button[data-testid="module-tab-Data"]').click();
-      await waitForModuleTransitions();
-      const titles = await $$('.volume-card .series-desc .text-ellipsis');
-      const names = await titles.map((title) => title.getText());
+      await page.locator('button[data-testid="module-tab-Data"]').click();
+      await utils.waitForModuleTransitions();
+      const titles = page.locator('.volume-card .series-desc .text-ellipsis');
+      const names = await titles.allInnerTexts();
       expect(names).toContain(name);
-      const title = titles[names.indexOf(name)];
-      await title.scrollIntoView();
-      await title.waitForClickable();
-      await title.click();
-      await openAnnotationSegments();
-      await expect(segmentImageName()).toHaveText(name);
+      await titles.nth(names.indexOf(name)).click();
+      await segmentation.openAnnotationSegments();
+      await expect(segmentation.segmentImageName()).toHaveText(name);
     };
 
     await showSeries('101');
-    await expectSegments(['Tumor', 'Liver']);
-    await renameSegment('Tumor', 'Lesion');
+    await expectSegments(h, ['Tumor', 'Liver']);
+    await segmentation.renameSegment('Tumor', 'Lesion');
     await showSeries('202');
-    await expectSegments(['Tumor', 'Liver']);
+    await expectSegments(h, ['Tumor', 'Liver']);
     await showSeries('Synthetic cine');
-    await expectSegments(['Tumor', 'Liver']);
-    await expect($('[data-testid~="vtk-cine-view"]')).toBeDisplayed();
+    await expectSegments(h, ['Tumor', 'Liver']);
+    await expect(page.locator('[data-testid~="vtk-cine-view"]')).toBeVisible();
     await showSeries('101');
-    await expectSegments(['Lesion', 'Liver']);
-    expect(await volViewPage.getNotificationsCount()).toEqual(0);
+    await expectSegments(h, ['Lesion', 'Liver']);
+    expect(await volview.getNotificationsCount()).toEqual(0);
   });
 
-  it('starts images empty without a config when a sparse session reuses a replaced first view', async () => {
-    await openImages();
-    await addSegment();
-    await renameSegment('Segment 1', 'Liver');
-    await $$('.grid-item')[0].$('.view-type-select .v-field').click();
-    const coronal = overlayOption('Coronal');
-    await coronal.waitForClickable();
-    await coronal.click();
-    await expect($$('.grid-item')[0].$('.view-type-select input')).toHaveValue(
-      'Coronal'
-    );
+  test('starts images empty without a config when a sparse session reuses a replaced first view', async ({
+    page,
+    volview,
+    utils,
+    segmentation,
+    scratch,
+  }) => {
+    const h = { page, volview, utils, segmentation, scratch };
+    await openImages(h);
+    await segmentation.addSegment();
+    await segmentation.renameSegment('Segment 1', 'Liver');
+    await page
+      .locator('.grid-item')
+      .nth(0)
+      .locator('.view-type-select .v-field')
+      .click();
+    await utils.overlayOption('Coronal').click();
+    await expect(
+      page.locator('.grid-item').nth(0).locator('.view-type-select input')
+    ).toHaveValue('Coronal');
 
-    await dropImageOnView(SECOND, 0);
-    await openAnnotationSegments();
-    await expect(segmentImageName()).toHaveText(SECOND);
-    await expectSegments([]);
-    await volViewPage.selectTool('mdi-cursor-default');
-    await $$('.grid-item')[1].$('canvas').click();
-    await expect(segmentImageName()).toHaveText(FIRST);
-    await expectSegments(['Liver']);
+    await segmentation.dropImageOnView(SECOND, 0);
+    await segmentation.openAnnotationSegments();
+    await expect(segmentation.segmentImageName()).toHaveText(SECOND);
+    await expectSegments(h, []);
+    await volview.selectTool('mdi-cursor-default');
+    await page.locator('.grid-item').nth(1).locator('canvas').click();
+    await expect(segmentation.segmentImageName()).toHaveText(FIRST);
+    await expectSegments(h, ['Liver']);
 
-    await openSparseSession();
+    await openSparseSession(h);
 
-    await expectSegments([]);
-    await expect($('.grid-item[style*="mediumseagreen"]')).toBeDisplayed();
+    await expectSegments(h, []);
+    await expect(
+      page.locator('.grid-item[style*="mediumseagreen"]')
+    ).toBeVisible();
   });
 
-  it('keeps a visible image selected when a sparse session names an unknown view', async () => {
-    await volViewPage.open();
+  test('keeps a visible image selected when a sparse session names an unknown view', async ({
+    page,
+    volview,
+    utils,
+    segmentation,
+    scratch,
+  }) => {
+    const h = { page, volview, utils, segmentation, scratch };
+    await volview.open();
 
-    await openSparseSession('missing-view');
+    await openSparseSession(h, 'missing-view');
 
-    await expect($('.grid-item[style*="mediumseagreen"]')).toBeDisplayed();
-    await addSegment();
-    await expectSegments(['Segment 1']);
+    await expect(
+      page.locator('.grid-item[style*="mediumseagreen"]')
+    ).toBeVisible();
+    await segmentation.addSegment();
+    await expectSegments(h, ['Segment 1']);
   });
 
-  it('adds each config to the current image without removing or renaming anything', async () => {
-    writeMetaImage(FIRST, { size: 32 });
-    await writeManifestToFile(
+  test('adds each config to the current image without removing or renaming anything', async ({
+    page,
+    volview,
+    utils,
+    segmentation,
+    scratch,
+  }) => {
+    const h = { page, volview, utils, segmentation, scratch };
+    utils.writeMetaImage(FIRST, { size: 32 });
+    await utils.writeManifestToFile(
       { segments: { Liver: { color: '#ff0000' } } },
       'segment-owner-initial.json'
     );
-    await volViewPage.open(
-      `?urls=[tmp/${FIRST},tmp/segment-owner-initial.json]`
-    );
-    await volViewPage.waitForViews();
-    await openAnnotationSegments();
-    await expectSegments(['Liver']);
+    await volview.open(`?urls=[tmp/${FIRST},tmp/segment-owner-initial.json]`);
+    await volview.waitForViews();
+    await segmentation.openAnnotationSegments();
+    await expectSegments(h, ['Liver']);
 
-    const directory = makeTempDir('segment-owner-failed-import');
+    const directory = utils.makeTempDir('segment-owner-failed-import');
     writeFileSync(path.join(directory, 'broken.vti'), 'not VTI');
     writeFileSync(
       path.join(directory, 'companion.json'),
       JSON.stringify({ segments: { Tumor: { color: '#00ff00' } } })
     );
-    const manifest = await writeManifestToFile(
+    const manifest = await utils.writeManifestToFile(
       {
         resources: [
           { url: '/tmp/segment-owner-failed-import/broken.vti' },
@@ -255,201 +276,244 @@ describe('Image segmentation sets', () => {
       },
       'segment-owner-failed-resources.json'
     );
-    await openThroughDialog(manifest);
-    await volViewPage.waitForNotification();
-    await expectSegments(['Liver', 'Tumor']);
+    await utils.openThroughDialog(manifest);
+    await volview.waitForNotification();
+    await expectSegments(h, ['Liver', 'Tumor']);
 
-    const standalone = await writeManifestToFile(
+    const standalone = await utils.writeManifestToFile(
       { segments: { Standalone: { color: '#0000ff' } } },
       'segment-owner-standalone.json'
     );
-    await openThroughDialog(standalone);
-    await expectSegments(['Liver', 'Tumor', 'Standalone']);
+    await utils.openThroughDialog(standalone);
+    await expectSegments(h, ['Liver', 'Tumor', 'Standalone']);
 
-    await renameSegment('Standalone', 'Mine');
-    await openThroughDialog(standalone);
-    await expectSegments(['Liver', 'Tumor', 'Mine', 'Standalone']);
+    await segmentation.renameSegment('Standalone', 'Mine');
+    await utils.openThroughDialog(standalone);
+    await expectSegments(h, ['Liver', 'Tumor', 'Mine', 'Standalone']);
   });
 
-  it('gives every newly shown image the config segments in any order', async () => {
-    writeMetaImage(FIRST, { size: 32, step: 3 });
-    writeMetaImage(SECOND, { size: 32, step: 5 });
-    await writeManifestToFile(
+  test('gives every newly shown image the config segments in any order', async ({
+    page,
+    volview,
+    utils,
+    segmentation,
+    scratch,
+  }) => {
+    const h = { page, volview, utils, segmentation, scratch };
+    utils.writeMetaImage(FIRST, { size: 32, step: 3 });
+    utils.writeMetaImage(SECOND, { size: 32, step: 5 });
+    await utils.writeManifestToFile(
       { segments: { Tumor: {}, Liver: {} } },
       'segment-owner-order-config.json'
     );
-    await volViewPage.open(
+    await volview.open(
       `?urls=[tmp/${FIRST},tmp/${SECOND},tmp/segment-owner-order-config.json]`
     );
-    await volViewPage.waitForViews();
-    await showImage(FIRST);
-    await expectSegments(['Tumor', 'Liver']);
-    await addSegment();
-    await renameSegment('Segment 1', 'Node');
-    await expectSegments(['Tumor', 'Liver', 'Node']);
+    await volview.waitForViews();
+    await showImage(h, FIRST);
+    await expectSegments(h, ['Tumor', 'Liver']);
+    await segmentation.addSegment();
+    await segmentation.renameSegment('Segment 1', 'Node');
+    await expectSegments(h, ['Tumor', 'Liver', 'Node']);
 
-    await showImage(SECOND);
-    await expectSegments(['Tumor', 'Liver']);
+    await showImage(h, SECOND);
+    await expectSegments(h, ['Tumor', 'Liver']);
   });
 
-  it('copies definitions on request and keeps edits and deletion on their image', async () => {
-    await openImages();
-    await createSourceDefinitions();
-    const originalColor = await segmentColor('Tumor');
+  test('copies definitions on request and keeps edits and deletion on their image', async ({
+    page,
+    volview,
+    utils,
+    segmentation,
+    scratch,
+  }) => {
+    const h = { page, volview, utils, segmentation, scratch };
+    await openImages(h);
+    await createSourceDefinitions(h);
+    const originalColor = await segmentation.segmentColor('Tumor');
 
-    await showImage(SECOND);
-    await expectSegments([]);
-    await createSegmentRow().execute((element) => element.focus());
-    await browser.keys('Tab');
-    await expect(copySegmentsRow()).toBeFocused();
-    await browser.keys('Enter');
-    await expect(copySource(FIRST)).toBeDisplayed();
-    await expect(copySource(FIRST)).toHaveText('2 segments', {
-      containing: true,
-    });
-    await browser.keys('ArrowDown');
-    await expect(copySource(FIRST)).toBeFocused();
-    await browser.keys('Enter');
-    await expectSegments(['Tumor', 'Liver']);
-    expect(await selectedSegmentName()).toEqual('Tumor');
-    expect(await segmentColor('Tumor')).toEqual(originalColor);
+    await showImage(h, SECOND);
+    await expectSegments(h, []);
+    await segmentation.createSegmentRow().focus();
+    await page.keyboard.press('Tab');
+    await expect(segmentation.copySegmentsRow()).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(segmentation.copySource(FIRST)).toBeVisible();
+    await expect(segmentation.copySource(FIRST)).toContainText('2 segments');
+    await page.keyboard.press('ArrowDown');
+    await expect(segmentation.copySource(FIRST)).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expectSegments(h, ['Tumor', 'Liver']);
+    expect(await segmentation.selectedSegmentName()).toEqual('Tumor');
+    expect(await segmentation.segmentColor('Tumor')).toEqual(originalColor);
     await expect(
-      (await segmentRow('Tumor')).$('[data-testid="reveal-segment-button"]')
+      (await segmentation.segmentRow('Tumor')).locator(
+        '[data-testid="reveal-segment-button"]'
+      )
     ).toBeDisabled();
-    await expect(volViewPage.saveSegmentsButtons[0]).toBeDisabled();
+    await expect(volview.saveSegmentsButtons.first()).toBeDisabled();
 
-    await openCopySegmentsMenu();
-    const copied = copySource(FIRST);
-    await expect(copied).toHaveElementClass('v-list-item--disabled');
-    await copied.moveTo();
-    const reason = await tooltipOf(copied.$('..'));
+    await segmentation.openCopySegmentsMenu();
+    const copied = segmentation.copySource(FIRST);
+    await expect(copied).toHaveClass(/\bv-list-item--disabled\b/);
+    await utils.moveToElement(copied);
+    const reason = await segmentation.tooltipOf(copied.locator('..'));
     await expect(reason).toHaveText('Every segment is already on this image');
-    await browser.keys('Escape');
-    await copied.waitForDisplayed({ reverse: true });
+    // The active class leaves on close, so follow the element itself out.
+    const copiedElement = await copied.elementHandle();
+    await page.keyboard.press('Escape');
+    await copiedElement?.waitForElementState('hidden');
 
-    await renameSegment('Tumor', 'Lesion');
-    await recolorSegment('Lesion', 64);
-    const secondColor = await segmentColor('Lesion');
+    await segmentation.renameSegment('Tumor', 'Lesion');
+    await segmentation.recolorSegment('Lesion', 64);
+    const secondColor = await segmentation.segmentColor('Lesion');
     expect(secondColor).not.toEqual(originalColor);
-    await paint();
-    await waitForSegmentContent('Lesion');
-    await lockSegment('Liver');
-    await (await segmentRow('Liver'))
-      .$('button[aria-label="Hide Liver"]')
+    await paint(h);
+    await segmentation.waitForSegmentContent('Lesion');
+    await segmentation.lockSegment('Liver');
+    await (await segmentation.segmentRow('Liver'))
+      .locator('button[aria-label="Hide Liver"]')
       .click();
 
-    await showImage(FIRST);
-    await expectSegments(['Tumor', 'Liver']);
-    expect(await selectedSegmentName()).toEqual('Tumor');
-    expect(await segmentColor('Tumor')).toEqual(originalColor);
-    await waitForSegmentContent('Tumor');
+    await showImage(h, FIRST);
+    await expectSegments(h, ['Tumor', 'Liver']);
+    expect(await segmentation.selectedSegmentName()).toEqual('Tumor');
+    expect(await segmentation.segmentColor('Tumor')).toEqual(originalColor);
+    await segmentation.waitForSegmentContent('Tumor');
     await expect(
-      (await segmentRow('Liver')).$('button[aria-label="Lock Liver"]')
-    ).toExist();
+      (await segmentation.segmentRow('Liver')).locator(
+        'button[aria-label="Lock Liver"]'
+      )
+    ).toBeAttached();
     await expect(
-      (await segmentRow('Liver')).$('button[aria-label="Hide Liver"]')
-    ).toExist();
+      (await segmentation.segmentRow('Liver')).locator(
+        'button[aria-label="Hide Liver"]'
+      )
+    ).toBeAttached();
 
-    await showImage(SECOND);
-    await expectSegments(['Lesion', 'Liver']);
-    expect(await segmentColor('Lesion')).toEqual(secondColor);
-    await deleteSegment('Lesion');
-    await showImage(FIRST);
-    await expectSegments(['Tumor', 'Liver']);
-    await waitForSegmentContent('Tumor');
-    await expect(volViewPage.saveSegmentsButtons[0]).toBeEnabled();
+    await showImage(h, SECOND);
+    await expectSegments(h, ['Lesion', 'Liver']);
+    expect(await segmentation.segmentColor('Lesion')).toEqual(secondColor);
+    await segmentation.deleteSegment('Lesion');
+    await showImage(h, FIRST);
+    await expectSegments(h, ['Tumor', 'Liver']);
+    await segmentation.waitForSegmentContent('Tumor');
+    await expect(volview.saveSegmentsButtons.first()).toBeEnabled();
   });
 
-  it('keeps a same-named segment when copying', async () => {
-    await openImages();
-    await createSourceDefinitions();
-    const firstLiver = await segmentColor('Liver');
-    await showImage(SECOND);
-    await addSegment();
-    await renameSegment('Segment 1', 'Liver');
-    await recolorSegment('Liver', 64);
-    const ownLiver = await segmentColor('Liver');
+  test('keeps a same-named segment when copying', async ({
+    page,
+    volview,
+    utils,
+    segmentation,
+    scratch,
+  }) => {
+    const h = { page, volview, utils, segmentation, scratch };
+    await openImages(h);
+    await createSourceDefinitions(h);
+    const firstLiver = await segmentation.segmentColor('Liver');
+    await showImage(h, SECOND);
+    await segmentation.addSegment();
+    await segmentation.renameSegment('Segment 1', 'Liver');
+    await segmentation.recolorSegment('Liver', 64);
+    const ownLiver = await segmentation.segmentColor('Liver');
     expect(ownLiver).not.toEqual(firstLiver);
 
-    await copySegmentsFrom(FIRST);
+    await segmentation.copySegmentsFrom(FIRST);
 
-    await expectSegments(['Liver', 'Tumor']);
-    expect(await segmentColor('Liver')).toEqual(ownLiver);
+    await expectSegments(h, ['Liver', 'Tumor']);
+    expect(await segmentation.segmentColor('Liver')).toEqual(ownLiver);
   });
 
-  it('disables copying while no other image has segments', async () => {
-    writeMetaImage(FIRST, { size: 32, step: 3 });
-    await volViewPage.open(`?urls=[tmp/${FIRST}]`);
-    await volViewPage.waitForViews();
-    await openAnnotationSegments();
-    await addSegment();
+  test('disables copying while no other image has segments', async ({
+    volview,
+    utils,
+    segmentation,
+  }) => {
+    utils.writeMetaImage(FIRST, { size: 32, step: 3 });
+    await volview.open(`?urls=[tmp/${FIRST}]`);
+    await volview.waitForViews();
+    await segmentation.openAnnotationSegments();
+    await segmentation.addSegment();
 
-    const row = copySegmentsRow();
+    const row = segmentation.copySegmentsRow();
     await expect(row).toBeDisabled();
-    await row.moveTo();
-    const reason = await tooltipOf(row.$('..'));
+    await utils.moveToElement(row);
+    const reason = await segmentation.tooltipOf(row.locator('..'));
     await expect(reason).toHaveText('No other image has segments yet');
   });
 
-  it('keeps a never-viewed image empty after restore and copies onto it', async () => {
-    await openImages();
-    await createSourceDefinitions();
+  test('keeps a never-viewed image empty after restore and copies onto it', async ({
+    page,
+    volview,
+    utils,
+    segmentation,
+    scratch,
+  }) => {
+    const h = { page, volview, utils, segmentation, scratch };
+    await openImages(h);
+    await createSourceDefinitions(h);
 
-    const filename = await volViewPage.saveSession();
-    const savedPath = path.join(TEMP_DIR, filename);
-    await waitForDownload(savedPath, SESSION_SAVE_TIMEOUT);
-    await volViewPage.open();
-    await restorePaintSession(savedPath);
-    await showImage(SECOND);
-    await expectSegments([]);
+    const filename = await volview.saveSession();
+    const savedPath = scratch.path(filename);
+    await volview.open();
+    await restorePaintSession(h, savedPath);
+    await showImage(h, SECOND);
+    await expectSegments(h, []);
 
-    await copySegmentsFrom(FIRST);
+    await segmentation.copySegmentsFrom(FIRST);
 
-    await expectSegments(['Tumor', 'Liver']);
-    await showImage(FIRST);
-    await waitForSegmentContent('Tumor');
+    await expectSegments(h, ['Tumor', 'Liver']);
+    await showImage(h, FIRST);
+    await segmentation.waitForSegmentContent('Tumor');
   });
 
-  it('preserves a deliberately empty set through switching and restore until a config fills it', async () => {
-    await openImages();
-    await createSourceDefinitions();
-    const competingDefaults = await writeManifestToFile(
+  test('preserves a deliberately empty set through switching and restore until a config fills it', async ({
+    page,
+    volview,
+    utils,
+    segmentation,
+    scratch,
+  }) => {
+    const h = { page, volview, utils, segmentation, scratch };
+    await openImages(h);
+    await createSourceDefinitions(h);
+    const competingDefaults = await utils.writeManifestToFile(
       { segments: { Tumor: {}, Liver: {} } },
       'segment-owner-competing-defaults.json'
     );
-    await openThroughDialog(competingDefaults);
-    await expectSegments(['Tumor', 'Liver']);
-    await showImage(SECOND);
-    await expectSegments(['Tumor', 'Liver']);
-    await deleteSegment('Tumor');
-    await deleteSegment('Liver');
-    await expectSegments([]);
-    await showImage(FIRST);
-    await waitForSegmentContent('Tumor');
-    await showImage(SECOND);
-    await expectSegments([]);
+    await utils.openThroughDialog(competingDefaults);
+    await expectSegments(h, ['Tumor', 'Liver']);
+    await showImage(h, SECOND);
+    await expectSegments(h, ['Tumor', 'Liver']);
+    await segmentation.deleteSegment('Tumor');
+    await segmentation.deleteSegment('Liver');
+    await expectSegments(h, []);
+    await showImage(h, FIRST);
+    await segmentation.waitForSegmentContent('Tumor');
+    await showImage(h, SECOND);
+    await expectSegments(h, []);
 
-    await showImage(FIRST);
-    await expectSegments(['Tumor', 'Liver']);
-    const filename = await volViewPage.saveSession();
-    const savedPath = path.join(TEMP_DIR, filename);
-    await waitForDownload(savedPath, SESSION_SAVE_TIMEOUT);
-    await volViewPage.open();
-    await restorePaintSession(savedPath);
-    await showImage(SECOND);
-    await expectSegments([]);
-    await showImage(FIRST);
-    await expectSegments(['Tumor', 'Liver']);
-    await waitForSegmentContent('Tumor');
-    expect(await volViewPage.getNotificationsCount()).toEqual(0);
+    await showImage(h, FIRST);
+    await expectSegments(h, ['Tumor', 'Liver']);
+    const filename = await volview.saveSession();
+    const savedPath = scratch.path(filename);
+    await volview.open();
+    await restorePaintSession(h, savedPath);
+    await showImage(h, SECOND);
+    await expectSegments(h, []);
+    await showImage(h, FIRST);
+    await expectSegments(h, ['Tumor', 'Liver']);
+    await segmentation.waitForSegmentContent('Tumor');
+    expect(await volview.getNotificationsCount()).toEqual(0);
 
-    await volViewPage.open();
-    await openThroughDialog(competingDefaults);
-    await restorePaintSession(savedPath);
-    await showImage(SECOND);
-    await expectSegments(['Tumor', 'Liver']);
-    await showImage(FIRST);
-    await expectSegments(['Tumor', 'Liver']);
-    await waitForSegmentContent('Tumor');
+    await volview.open();
+    await utils.openThroughDialog(competingDefaults);
+    await restorePaintSession(h, savedPath);
+    await showImage(h, SECOND);
+    await expectSegments(h, ['Tumor', 'Liver']);
+    await showImage(h, FIRST);
+    await expectSegments(h, ['Tumor', 'Liver']);
+    await segmentation.waitForSegmentContent('Tumor');
   });
 });

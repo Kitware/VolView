@@ -1,5 +1,5 @@
 import type { DataSet } from 'dicom-parser';
-import reference from './reference.json';
+import reference from './reference.json' with { type: 'json' };
 import { elemShort, elemLong, LONG_FORM_VRS } from '../../specs/syntheticDicom';
 
 const concat = (chunks: Uint8Array[]) => Buffer.concat(chunks);

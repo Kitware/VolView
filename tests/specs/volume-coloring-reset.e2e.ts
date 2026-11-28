@@ -1,122 +1,141 @@
+import type { Locator, Page } from '@playwright/test';
+import { test, expect } from '../fixtures';
+import { containsText } from '../pageobjects/volview.page';
 import {
   differingFraction,
-  openRenderingModule,
-  showColorPresets,
-  openWith3DLayout,
-  pressOn,
   radialRamp,
-  selectedPreset,
-  sliderThumb,
-  stablePixels,
-  viewPixels,
-  waitForFittedColorRange,
-  writeFloatVolume,
+  type VolumeUtils,
 } from './volumeTestUtils';
 
 const SIZE = 16;
 const EDITOR = '[data-testid="volume-opacity-editor"]';
 const RESET = '[data-testid="volume-reset-color-opacity"]';
 
-const shiftThumb = () => sliderThumb('volume-color-shift');
-const widthThumb = () => sliderThumb('volume-color-width');
-const ambientThumb = () => $('.v-slider*=Ambient').$('[role="slider"]');
-const sliderValue = async (slider: ChainablePromiseElement) =>
+const shiftThumb = (volume: VolumeUtils) =>
+  volume.sliderThumb('volume-color-shift');
+const widthThumb = (volume: VolumeUtils) =>
+  volume.sliderThumb('volume-color-width');
+const ambientThumb = (page: Page) =>
+  page
+    .locator('.v-slider', { hasText: containsText('Ambient') })
+    .first()
+    .locator('[role="slider"]');
+const sliderValue = async (slider: Locator) =>
   String(await slider.getAttribute('aria-valuenow'));
 
 async function waitForPixels(
-  selector: string,
-  inset: number,
+  volume: VolumeUtils,
   expected: Buffer,
   matches: boolean,
   timeoutMsg: string
 ) {
-  await browser.waitUntil(
-    async () => {
-      const fraction = differingFraction(
-        await viewPixels(selector, inset, 'volume-coloring-reset.png'),
-        expected
-      );
-      return matches ? fraction < 0.01 : fraction > 0.05;
-    },
-    { timeoutMsg }
+  await expect
+    .poll(
+      async () => {
+        const fraction = differingFraction(
+          await volume.viewPixels(EDITOR, 0, 'volume-coloring-reset.png'),
+          expected
+        );
+        return matches ? fraction < 0.01 : fraction > 0.05;
+      },
+      { message: timeoutMsg }
+    )
+    .toBe(true);
+}
+
+async function dragOpacityCurve(page: Page, steps: number) {
+  const editor = page.locator(EDITOR).locator('canvas').first();
+  await editor.evaluate((element) =>
+    element.scrollIntoView({ block: 'center', behavior: 'instant' })
   );
+  const box = await editor.boundingBox();
+  if (!box) throw new Error('The opacity editor is not on screen');
+  // WebdriverIO measured the start from the canvas center.
+  let x = Math.round(box.x + box.width / 2) - 60;
+  const y = Math.round(box.y + box.height / 2);
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  for (let step = 0; step < steps; step++) {
+    x += 30;
+    await page.mouse.move(x, y);
+  }
+  await page.mouse.up();
 }
 
-async function dragOpacityCurve(steps: number) {
-  const editor = $(EDITOR).$('canvas');
-  await editor.scrollIntoView({ block: 'center', behavior: 'instant' });
-  const drag = browser
-    .action('pointer')
-    .move({ origin: editor, x: -60, y: 0 })
-    .down();
-  for (let step = 0; step < steps; step++)
-    drag.move({ origin: 'pointer', x: 30, y: 0, duration: 50 });
-  await drag.up().perform();
-}
-
-describe('3D rendering color and opacity reset', () => {
-  it('restores Shift, Width, and the opacity curve while keeping lighting', async () => {
+test.describe('3D rendering color and opacity reset', () => {
+  test('restores Shift, Width, and the opacity curve while keeping lighting', async ({
+    page,
+    volume,
+  }) => {
+    test.slow();
     const name = 'volume-coloring-reset';
-    await openWith3DLayout(
-      writeFloatVolume(name, SIZE, radialRamp(SIZE)),
+    await volume.openWith3DLayout(
+      volume.writeFloatVolume(name, SIZE, radialRamp(SIZE)),
       name
     );
-    await openRenderingModule();
-    const reset = $(RESET);
+    await volume.openRenderingModule();
+    const reset = page.locator(RESET);
     await expect(reset).toHaveAttribute(
       'aria-label',
       'Reset color and opacity'
     );
 
-    await waitForFittedColorRange(1000);
+    await volume.waitForFittedColorRange(1000);
 
     // Reset must keep a preset chosen over the Grayscale default.
-    await showColorPresets();
-    await $('.thumbnail-container*=MR Default').click();
-    await expect(selectedPreset()).toHaveText('MR Default');
+    await volume.showColorPresets();
+    await page
+      .locator('.thumbnail-container', { hasText: containsText('MR Default') })
+      .first()
+      .click();
+    await expect(volume.selectedPreset()).toHaveText('MR Default');
     // The open preset grid pushes the opacity editor out of the capture area.
-    await showColorPresets(false);
+    await volume.showColorPresets(false);
 
-    await pressOn(ambientThumb(), 'ArrowRight');
-    await expect(ambientThumb()).toHaveAttribute('aria-valuenow', '0.3');
+    await volume.pressOn(ambientThumb(page), 'ArrowRight');
+    await expect(ambientThumb(page)).toHaveAttribute('aria-valuenow', '0.3');
 
-    const shift = await sliderValue(shiftThumb());
-    const width = await sliderValue(widthThumb());
+    const shift = await sliderValue(shiftThumb(volume));
+    const width = await sliderValue(widthThumb(volume));
     // The editor draws both the opacity curve and the color bar for Shift and Width.
-    await browser.execute(
+    await page.evaluate(
       (selector) => document.querySelector(selector)?.scrollIntoView(),
       EDITOR
     );
-    const editor = await stablePixels(EDITOR, 0);
+    const editor = await volume.stablePixels(EDITOR, 0);
 
-    await dragOpacityCurve(3);
+    await dragOpacityCurve(page, 3);
     await waitForPixels(
-      EDITOR,
-      0,
+      volume,
       editor,
       false,
       'Expected dragging to change the opacity curve'
     );
-    await pressOn(shiftThumb(), 'End');
-    await pressOn(widthThumb(), 'Home');
-    await expect(shiftThumb()).not.toHaveAttribute('aria-valuenow', shift);
-    await expect(widthThumb()).not.toHaveAttribute('aria-valuenow', width);
+    await volume.pressOn(shiftThumb(volume), 'End');
+    await volume.pressOn(widthThumb(volume), 'Home');
+    await expect(shiftThumb(volume)).not.toHaveAttribute(
+      'aria-valuenow',
+      shift
+    );
+    await expect(widthThumb(volume)).not.toHaveAttribute(
+      'aria-valuenow',
+      width
+    );
 
-    await browser.keys('Tab');
+    await page.keyboard.press('Tab');
     await expect(reset).toBeFocused();
-    await browser.keys('Enter');
+    await page.keyboard.press('Enter');
 
-    await expect(shiftThumb()).toHaveAttribute('aria-valuenow', shift);
-    await expect(widthThumb()).toHaveAttribute('aria-valuenow', width);
+    await expect(shiftThumb(volume)).toHaveAttribute('aria-valuenow', shift);
+    await expect(widthThumb(volume)).toHaveAttribute('aria-valuenow', width);
     await waitForPixels(
-      EDITOR,
-      0,
+      volume,
       editor,
       true,
       'Expected reset to restore the opacity curve and color bar'
     );
-    await expect(ambientThumb()).toHaveAttribute('aria-valuenow', '0.3');
-    await showColorPresets();
-    await expect(selectedPreset()).toHaveText('MR Default');
-  }).timeout(180_000);
+    await expect(ambientThumb(page)).toHaveAttribute('aria-valuenow', '0.3');
+    await volume.showColorPresets();
+    await expect(volume.selectedPreset()).toHaveText('MR Default');
+  });
 });

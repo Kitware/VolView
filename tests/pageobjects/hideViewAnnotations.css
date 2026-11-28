@@ -1,0 +1,4 @@
+/* Applied only while a visual check captures a view. */
+.view-annotations {
+  display: none !important;
+}

@@ -1,9 +1,11 @@
-import { volViewPage } from '../pageobjects/volview.page';
-import { openConfigAndDataset } from './configTestUtils';
+import { test, expect } from '../fixtures';
 import { PROSTATEX_DATASET } from '../datasets';
 
-describe('VolView Layout Configuration', () => {
-  it('should create a 2x2 grid layout from simple string array', async () => {
+test.describe('VolView Layout Configuration', () => {
+  test('should create a 2x2 grid layout from simple string array', async ({
+    volview,
+    configUtils,
+  }) => {
     const config = {
       layouts: {
         default: [
@@ -13,12 +15,15 @@ describe('VolView Layout Configuration', () => {
       },
     };
 
-    await openConfigAndDataset(config, 'layout-grid');
+    await configUtils.openConfigAndDataset(config, 'layout-grid');
 
-    await volViewPage.waitForViewCounts(3, true);
+    await volview.waitForViewCounts(3, true);
   });
 
-  it('should create an asymmetric nested layout', async () => {
+  test('should create an asymmetric nested layout', async ({
+    volview,
+    configUtils,
+  }) => {
     const config = {
       layouts: {
         default: {
@@ -34,12 +39,15 @@ describe('VolView Layout Configuration', () => {
       },
     };
 
-    await openConfigAndDataset(config, 'layout-nested');
+    await configUtils.openConfigAndDataset(config, 'layout-nested');
 
-    await volViewPage.waitForViewCounts(3, true);
+    await volview.waitForViewCounts(3, true);
   });
 
-  it('should create layout with custom view options', async () => {
+  test('should create layout with custom view options', async ({
+    volview,
+    configUtils,
+  }) => {
     const config = {
       layouts: {
         default: {
@@ -69,12 +77,15 @@ describe('VolView Layout Configuration', () => {
       },
     };
 
-    await openConfigAndDataset(config, 'layout-custom-views');
+    await configUtils.openConfigAndDataset(config, 'layout-custom-views');
 
-    await volViewPage.waitForViewCounts(2, true);
+    await volview.waitForViewCounts(2, true);
   });
 
-  it('should support multiple named layouts and preserve slice selection', async () => {
+  test('should support multiple named layouts and preserve slice selection', async ({
+    volview,
+    configUtils,
+  }) => {
     const config = {
       layouts: {
         'Four Up Axial': [
@@ -86,61 +97,69 @@ describe('VolView Layout Configuration', () => {
       },
     };
 
-    await openConfigAndDataset(config, 'multiple-layouts', PROSTATEX_DATASET);
+    await configUtils.openConfigAndDataset(
+      config,
+      'multiple-layouts',
+      PROSTATEX_DATASET
+    );
 
-    await volViewPage.waitForViewCounts(4, false);
+    await volview.waitForViewCounts(4, false);
 
-    await volViewPage.focusFirst2DView();
+    await volview.focusFirst2DView();
 
-    const initialSlice = await volViewPage.getFirst2DSlice();
-    expect(initialSlice).not.toBeNull();
+    const initialSlice = await volview.getFirst2DSlice();
+    expect(initialSlice).not.toBeUndefined();
 
-    await volViewPage.advanceSliceAndWait();
+    await volview.advanceSliceAndWait();
 
-    const sliceAfterScroll = await volViewPage.getFirst2DSlice();
-    expect(sliceAfterScroll).not.toBeNull();
-    if (initialSlice !== null && sliceAfterScroll !== null) {
+    const sliceAfterScroll = await volview.getFirst2DSlice();
+    expect(sliceAfterScroll).not.toBeUndefined();
+    if (initialSlice !== undefined && sliceAfterScroll !== undefined) {
       expect(sliceAfterScroll).toBeLessThan(initialSlice);
     }
 
-    await volViewPage.openLayoutMenu(3);
-    const layoutTitles = await volViewPage.getLayoutOptionTitles();
+    await volview.openLayoutMenu(3);
+    const layoutTitles = await volview.getLayoutOptionTitles();
     expect(layoutTitles).toEqual(
       expect.arrayContaining(['Four Up Axial', 'Single Axial', 'Dual Axial'])
     );
 
-    await volViewPage.selectLayoutOption('Single Axial');
-    await volViewPage.waitForViewCounts(1, false);
+    await volview.selectLayoutOption('Single Axial');
+    await volview.waitForViewCounts(1, false);
 
-    await volViewPage.focusFirst2DView();
-    const sliceAfterLayoutSwitch = await volViewPage.getFirst2DSlice();
+    await volview.focusFirst2DView();
+    const sliceAfterLayoutSwitch = await volview.getFirst2DSlice();
     expect(sliceAfterLayoutSwitch).toBe(sliceAfterScroll);
 
-    await volViewPage.openLayoutMenu(3);
-    await volViewPage.selectLayoutOption('Dual Axial');
-    await volViewPage.waitForViewCounts(2, false);
+    await volview.openLayoutMenu(3);
+    await volview.selectLayoutOption('Dual Axial');
+    await volview.waitForViewCounts(2, false);
 
-    await volViewPage.focusFirst2DView();
-    const sliceInFirstViewAfterDualSwitch = await volViewPage.getFirst2DSlice();
+    await volview.focusFirst2DView();
+    const sliceInFirstViewAfterDualSwitch = await volview.getFirst2DSlice();
     expect(sliceInFirstViewAfterDualSwitch).toBe(sliceAfterScroll);
   });
 
-  it('should disable configured view types', async () => {
+  test('should disable configured view types', async ({
+    page,
+    volview,
+    configUtils,
+  }) => {
     const config = {
       disabledViewTypes: ['3D', 'Oblique', 'EnFace'],
     };
 
-    await openConfigAndDataset(config, 'disabled-view-types');
+    await configUtils.openConfigAndDataset(config, 'disabled-view-types');
 
-    await volViewPage.waitForViewCounts(4, false);
+    await volview.waitForViewCounts(4, false);
 
-    const viewTypeSwitchers = await $$('.view-type-select');
-    expect(viewTypeSwitchers.length).toBeGreaterThan(0);
+    const viewTypeSwitchers = page.locator('.view-type-select');
+    expect(await viewTypeSwitchers.count()).toBeGreaterThan(0);
 
-    const firstSwitcher = viewTypeSwitchers[0];
+    const firstSwitcher = viewTypeSwitchers.first();
     await firstSwitcher.click();
 
-    const optionTexts = await browser.execute(() => {
+    const optionTexts = await page.evaluate(() => {
       const items = Array.from(document.querySelectorAll('.v-list-item-title'));
       return items.map((item) => item.textContent?.trim() ?? '');
     });

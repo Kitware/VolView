@@ -1,250 +1,267 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { cleanuptotal } from 'wdio-cleanuptotal-service';
-import AppPage from '../pageobjects/volview.page';
-import type { ChainablePromiseElement } from 'webdriverio';
-import { TEMP_DIR } from '../../wdio.shared.conf';
-import {
-  drawSquare,
-  nudgeTo,
-  pressAtPointer,
-  rightPressAtPointer,
-  setupTest,
-} from './annotationTestUtils';
-import {
-  addSegment,
-  lockSegment,
-  openAnnotationSegments,
-  renameSegment,
-  segmentColor,
-  segmentNames,
-  selectSegment,
-  tooltipOf,
-  waitForNamedSegments,
-} from './segmentationTestUtils';
+import type { Locator, Page } from '@playwright/test';
+import { test, expect } from '../fixtures';
+import { exactText } from '../pageobjects/volview.page';
 import { CINE_US_DATASET } from '../datasets';
-import {
-  openUrls,
-  openVolViewPage,
-  readSavedSessionWithoutSelection,
-} from './utils';
+import type { Utils } from './utils';
+import type { AnnotationUtils } from './annotationTestUtils';
+import type { SegmentationUtils } from './segmentationTestUtils';
 
-const RASTERIZE_ITEM = '.v-list-item-title=Rasterize';
-
-const rasterizeMenuParts = async () => {
-  const title = await $(RASTERIZE_ITEM);
-  const item = await title.$('..').$('..');
-  return { item, activator: await item.$('..') };
+type Helpers = {
+  page: Page;
+  utils: Utils;
+  annotation: AnnotationUtils;
+  segmentation: SegmentationUtils;
 };
 
-const expectDisabledRasterizeReason = async (reason: string) => {
-  const { item, activator } = await rasterizeMenuParts();
+const rasterizeItem = (page: Page) =>
+  page.locator('.v-list-item-title', { hasText: exactText('Rasterize') });
+
+const rasterizeMenuParts = (page: Page) => {
+  const item = rasterizeItem(page).locator('..').locator('..');
+  return { item, activator: item.locator('..') };
+};
+
+const expectDisabledRasterizeReason = async (
+  { page, utils, segmentation }: Helpers,
+  reason: string
+) => {
+  const { item, activator } = rasterizeMenuParts(page);
   expect(await item.getAttribute('class')).toContain('v-list-item--disabled');
-  await activator.moveTo();
-  const tooltip = await tooltipOf(activator);
-  await expect(tooltip).toBeDisplayed();
+  await utils.moveToElement(activator);
+  const tooltip = await segmentation.tooltipOf(activator);
+  await expect(tooltip).toBeVisible();
   await expect(tooltip).toHaveText(reason);
 };
 
 const openPolygonMenuAt = async (
-  canvas: ChainablePromiseElement,
+  { page, annotation }: Helpers,
+  canvas: Locator,
   x: number,
   y: number
 ) => {
   // Every target is the square's top-right handle. Start outside its pickable
   // fill so the cursor transition confirms the handle's pick has completed.
-  await nudgeTo(x + 20, y - 20);
-  await browser.waitUntil(
-    async () => (await canvas.getCSSProperty('cursor')).value === 'default'
-  );
-  await nudgeTo(x, y);
-  await browser.waitUntil(
-    async () => (await canvas.getCSSProperty('cursor')).value === 'pointer'
-  );
-  await rightPressAtPointer();
-  await $(RASTERIZE_ITEM).waitForDisplayed();
+  await annotation.nudgeTo(x + 20, y - 20);
+  await expect(canvas).toHaveCSS('cursor', 'default');
+  await annotation.nudgeTo(x, y);
+  await expect(canvas).toHaveCSS('cursor', 'pointer');
+  await annotation.rightPressAtPointer();
+  await expect(rasterizeItem(page)).toBeVisible();
 };
 
-describe('Polygon rasterize target', () => {
-  it('rasterizes into the segment the polygon was drawn with', async () => {
-    const { axialView, centerX, centerY } = await setupTest();
-    const canvas = axialView.$('canvas');
+const setupAxialCanvas = async (annotation: AnnotationUtils) => {
+  const { axialView, centerX, centerY } = await annotation.setupTest();
+  return { canvas: axialView.locator('canvas'), centerX, centerY };
+};
+
+test.describe('Polygon rasterize target', () => {
+  test('rasterizes into the segment the polygon was drawn with', async ({
+    page,
+    volview,
+    utils,
+    annotation,
+    segmentation,
+  }) => {
+    const helpers = { page, utils, annotation, segmentation };
+    const { canvas, centerX, centerY } = await setupAxialCanvas(annotation);
     const half = 60;
 
     // Paint a stroke first, so the image already holds a segment the polygon
     // must not borrow. Selecting a tool creates no painted content.
-    await AppPage.activatePaint();
-    const views2D = await AppPage.getViews2D();
-    await AppPage.paintStrokeOnView(views2D[0]);
-    await AppPage.selectTool('mdi-pentagon-outline');
+    await volview.activatePaint();
+    await volview.paintStrokeOnView(volview.views2D.first());
+    await volview.selectTool('mdi-pentagon-outline');
 
     // Polygon draws with the entry selected in the Segments list, so the paint
     // stroke's segment is already there and the new one is the second.
-    await openAnnotationSegments();
-    await waitForNamedSegments();
-    await addSegment();
-    await renameSegment('Segment 2', 'Lesion');
-    const lesionColor = await segmentColor('Lesion');
+    await segmentation.openAnnotationSegments();
+    await segmentation.waitForNamedSegments();
+    await segmentation.addSegment();
+    await segmentation.renameSegment('Segment 2', 'Lesion');
+    const lesionColor = await segmentation.segmentColor('Lesion');
 
-    await drawSquare(centerX, centerY, half);
+    await annotation.drawSquare(centerX, centerY, half);
 
-    expect(await segmentNames()).toEqual(['Segment 1', 'Lesion']);
+    expect(await segmentation.segmentNames()).toEqual(['Segment 1', 'Lesion']);
 
     // The context menu belongs to a placed polygon, and the polygon tool keeps
     // a placing one that would swallow the right click.
-    await AppPage.selectTool('mdi-cursor-default');
-    await selectSegment('Segment 1');
-    await openPolygonMenuAt(canvas, centerX + half, centerY - half);
+    await volview.selectTool('mdi-cursor-default');
+    await segmentation.selectSegment('Segment 1');
+    await openPolygonMenuAt(helpers, canvas, centerX + half, centerY - half);
     await expect(
-      $('.v-overlay--active .v-list-item-title.v-list-item--disabled')
+      page.locator(
+        '.v-overlay--active .v-list-item-title.v-list-item--disabled'
+      )
     ).toHaveText('Lesion');
-    await $(RASTERIZE_ITEM).click();
+    await rasterizeItem(page).click();
 
     // Rasterizing lands in the polygon's own segment: it neither mints a
     // second one nor borrows the segment the paint stroke made.
-    expect(await segmentNames()).toEqual(['Segment 1', 'Lesion']);
-    expect(await segmentColor('Lesion')).toEqual(lesionColor);
-    await AppPage.activatePaint();
-    await $('[data-testid="paint-eyedropper-button"]').click();
-    await browser.waitUntil(async () =>
-      String((await canvas.getCSSProperty('cursor')).value).startsWith('url(')
-    );
-    await nudgeTo(centerX, centerY);
-    await pressAtPointer();
+    expect(await segmentation.segmentNames()).toEqual(['Segment 1', 'Lesion']);
+    expect(await segmentation.segmentColor('Lesion')).toEqual(lesionColor);
+    await volview.activatePaint();
+    await page.locator('[data-testid="paint-eyedropper-button"]').click();
+    await expect(canvas).toHaveCSS('cursor', /^url\(/);
+    await annotation.nudgeTo(centerX, centerY);
+    await annotation.pressAtPointer();
     await expect(
-      $('[data-testid="segment-list"] .item-row[aria-current="true"]')
+      page.locator(
+        '[data-testid="segment-list"] .item-row[aria-current="true"]'
+      )
     ).toHaveAttribute('aria-label', 'Lesion');
   });
 
-  it('rasterizes a polygon drawn against an empty registry', async () => {
-    const { axialView, centerX, centerY } = await setupTest();
-    const canvas = axialView.$('canvas');
+  test('rasterizes a polygon drawn against an empty registry', async ({
+    page,
+    volview,
+    utils,
+    annotation,
+    segmentation,
+  }) => {
+    const helpers = { page, utils, annotation, segmentation };
+    const { canvas, centerX, centerY } = await setupAxialCanvas(annotation);
     const half = 60;
 
-    await AppPage.selectTool('mdi-pentagon-outline');
-    await drawSquare(centerX, centerY, half);
+    await volview.selectTool('mdi-pentagon-outline');
+    await annotation.drawSquare(centerX, centerY, half);
 
-    await openAnnotationSegments();
-    await expect(AppPage.saveSegmentsButtons[0]).toBeDisabled();
-    await AppPage.selectTool('mdi-cursor-default');
-    await openPolygonMenuAt(canvas, centerX + half, centerY - half);
-    await $(RASTERIZE_ITEM).click();
-    await expect(AppPage.saveSegmentsButtons[0]).toBeEnabled();
+    await segmentation.openAnnotationSegments();
+    await expect(volview.saveSegmentsButtons.first()).toBeDisabled();
+    await volview.selectTool('mdi-cursor-default');
+    await openPolygonMenuAt(helpers, canvas, centerX + half, centerY - half);
+    await rasterizeItem(page).click();
+    await expect(volview.saveSegmentsButtons.first()).toBeEnabled();
 
-    await openAnnotationSegments();
-    await waitForNamedSegments();
-    await browser.waitUntil(async () => (await segmentNames()).length === 1, {
-      timeoutMsg:
-        'The polygon and its rasterized mask should share one segment',
-    });
+    await segmentation.openAnnotationSegments();
+    await segmentation.waitForNamedSegments();
+    await expect
+      .poll(async () => (await segmentation.segmentNames()).length, {
+        message: 'The polygon and its rasterized mask should share one segment',
+      })
+      .toBe(1);
   });
 
-  it('explains a locked rasterize target on hover and keyboard focus', async () => {
-    const { axialView, centerX, centerY } = await setupTest();
-    const canvas = axialView.$('canvas');
+  test('explains a locked rasterize target on hover and keyboard focus', async ({
+    page,
+    volview,
+    utils,
+    annotation,
+    segmentation,
+  }) => {
+    const helpers = { page, utils, annotation, segmentation };
+    const { canvas, centerX, centerY } = await setupAxialCanvas(annotation);
     const half = 60;
-    await openAnnotationSegments();
-    await addSegment();
-    await AppPage.selectTool('mdi-pentagon-outline');
-    await drawSquare(centerX, centerY, half);
-    await lockSegment('Segment 1');
+    await segmentation.openAnnotationSegments();
+    await segmentation.addSegment();
+    await volview.selectTool('mdi-pentagon-outline');
+    await annotation.drawSquare(centerX, centerY, half);
+    await segmentation.lockSegment('Segment 1');
 
-    await AppPage.selectTool('mdi-cursor-default');
-    await openPolygonMenuAt(canvas, centerX + half, centerY - half);
-    let { item, activator } = await rasterizeMenuParts();
+    await volview.selectTool('mdi-cursor-default');
+    await openPolygonMenuAt(helpers, canvas, centerX + half, centerY - half);
+    let { item, activator } = rasterizeMenuParts(page);
     expect(await item.getAttribute('class')).toContain('v-list-item--disabled');
 
-    await activator.moveTo();
-    let tooltip = await tooltipOf(activator);
-    await expect(tooltip).toBeDisplayed();
+    await utils.moveToElement(activator);
+    let tooltip = await segmentation.tooltipOf(activator);
+    await expect(tooltip).toBeVisible();
     await expect(tooltip).toHaveText(
       'Unlock this segment to rasterize into it'
     );
 
-    await activator.execute((element) => element.focus());
-    tooltip = await tooltipOf(activator);
-    await expect(tooltip).toBeDisplayed();
+    await activator.focus();
+    tooltip = await segmentation.tooltipOf(activator);
+    await expect(tooltip).toBeVisible();
 
-    await browser.keys('Escape');
-    const row = await $('[data-testid="segment-list"] .item-row');
-    await row.$('button i[class~="mdi-lock"]').click();
-    await openPolygonMenuAt(canvas, centerX + half, centerY - half);
-    ({ item, activator } = await rasterizeMenuParts());
+    await page.keyboard.press('Escape');
+    const row = page.locator('[data-testid="segment-list"] .item-row').first();
+    await row.locator('button i[class~="mdi-lock"]').click();
+    await openPolygonMenuAt(helpers, canvas, centerX + half, centerY - half);
+    ({ item, activator } = rasterizeMenuParts(page));
     expect(await item.getAttribute('class')).not.toContain(
       'v-list-item--disabled'
     );
     await item.click();
-    await waitForNamedSegments();
+    await segmentation.waitForNamedSegments();
   });
 
-  it('disables Rasterize for the locked first segment after an unnamed restore', async () => {
-    const { centerX, centerY } = await setupTest();
+  test('disables Rasterize for the locked first segment after an unnamed restore', async ({
+    page,
+    volview,
+    utils,
+    scratch,
+    annotation,
+    segmentation,
+  }) => {
+    const helpers = { page, utils, annotation, segmentation };
+    const { centerX, centerY } = await annotation.setupTest();
     const half = 60;
-    await openAnnotationSegments();
-    await addSegment();
-    await AppPage.selectTool('mdi-pentagon-outline');
-    await drawSquare(centerX, centerY, half);
-    await lockSegment('Segment 1');
+    await segmentation.openAnnotationSegments();
+    await segmentation.addSegment();
+    await volview.selectTool('mdi-pentagon-outline');
+    await annotation.drawSquare(centerX, centerY, half);
+    await segmentation.lockSegment('Segment 1');
 
-    const savedName = await AppPage.saveSession();
-    const { zip, manifest } = await readSavedSessionWithoutSelection(savedName);
+    const savedName = await volview.saveSession();
+    const { zip, manifest } =
+      await utils.readSavedSessionWithoutSelection(savedName);
     delete manifest.tools.polygons.tools[0].segmentId;
     zip.file('manifest.json', JSON.stringify(manifest));
 
     const restoredName = 'restored-unnamed-locked-polygon.volview.zip';
-    const restoredPath = path.join(TEMP_DIR, restoredName);
-    fs.writeFileSync(
-      restoredPath,
+    scratch.writeFile(
+      restoredName,
       await zip.generateAsync({ type: 'nodebuffer' })
     );
-    cleanuptotal.addCleanup(async () => {
-      if (fs.existsSync(restoredPath)) fs.unlinkSync(restoredPath);
-    });
 
-    await openVolViewPage(restoredName);
-    const [restoredView] = await AppPage.getViews2D();
-    await browser.waitUntil(
-      async () => {
-        const circles = await restoredView.$$('svg circle');
-        return (await circles.length) === 4;
-      },
-      { timeoutMsg: 'The restored polygon should render all four handles' }
-    );
-    const restoredCanvas = restoredView.$('canvas');
-    const [location, size] = await Promise.all([
-      restoredCanvas.getLocation(),
-      restoredCanvas.getSize(),
-    ]);
-    await AppPage.selectTool('mdi-cursor-default');
+    await utils.openVolViewPage(restoredName);
+    const restoredView = volview.views2D.first();
+    await expect(
+      restoredView.locator('svg circle'),
+      'The restored polygon should render all four handles'
+    ).toHaveCount(4);
+    const restoredCanvas = restoredView.locator('canvas');
+    const box = await restoredCanvas.boundingBox();
+    if (!box) throw new Error('The restored view has no canvas on screen');
+    await volview.selectTool('mdi-cursor-default');
     await openPolygonMenuAt(
+      helpers,
       restoredCanvas,
-      location.x + size.width / 2 + half,
-      location.y + size.height / 2 - half
+      box.x + box.width / 2 + half,
+      box.y + box.height / 2 - half
     );
 
     await expectDisabledRasterizeReason(
+      helpers,
       'Unlock this segment to rasterize into it'
     );
   });
 
-  it('keeps Rasterize visible on cine and explains why it is disabled', async () => {
-    await openUrls([CINE_US_DATASET]);
-    const [view] = await AppPage.getViews2D();
-    const canvas = view.$('canvas');
-    const [location, size] = await Promise.all([
-      canvas.getLocation(),
-      canvas.getSize(),
-    ]);
-    const centerX = location.x + size.width / 2;
-    const centerY = location.y + size.height / 2;
+  test('keeps Rasterize visible on cine and explains why it is disabled', async ({
+    page,
+    volview,
+    utils,
+    annotation,
+    segmentation,
+  }) => {
+    const helpers = { page, utils, annotation, segmentation };
+    await utils.openUrls([CINE_US_DATASET]);
+    const view = volview.views2D.first();
+    const canvas = view.locator('canvas');
+    const box = await canvas.boundingBox();
+    if (!box) throw new Error('The view has no canvas on screen');
+    const centerX = box.x + box.width / 2;
+    const centerY = box.y + box.height / 2;
     const half = 30;
 
-    await AppPage.selectTool('mdi-pentagon-outline');
-    await drawSquare(centerX, centerY, half);
-    await AppPage.selectTool('mdi-cursor-default');
-    await openPolygonMenuAt(canvas, centerX + half, centerY - half);
+    await volview.selectTool('mdi-pentagon-outline');
+    await annotation.drawSquare(centerX, centerY, half);
+    await volview.selectTool('mdi-cursor-default');
+    await openPolygonMenuAt(helpers, canvas, centerX + half, centerY - half);
 
     await expectDisabledRasterizeReason(
+      helpers,
       'Rasterization is not supported for cine images'
     );
   });

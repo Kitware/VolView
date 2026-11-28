@@ -1,25 +1,30 @@
+import type { Page } from '@playwright/test';
+import { test, expect } from '../fixtures';
 import { startOutlineFixture } from '../fixtures/label-outline/server.mjs';
+
+const waitForOutline = (page: Page) =>
+  expect.poll(() => page.evaluate(() => !!window.outlineResult)).toBe(true);
 
 // Exercise the installed vtk.js shader in real WebGL. A DOM unit test cannot
 // detect CLAMP_TO_EDGE turning an out-of-image neighbor into the same label.
-describe('Bounded label outlines', () => {
+test.describe('Bounded label outlines', () => {
   let fixture: Awaited<ReturnType<typeof startOutlineFixture>>;
 
-  before(async () => {
+  test.beforeAll(async () => {
     fixture = await startOutlineFixture();
   });
 
-  after(async () => {
+  test.afterAll(async () => {
     await fixture?.close();
   });
 
   for (const axis of [0, 1, 2]) {
-    it(`outlines all four cropped edges on axis ${axis}`, async () => {
-      await browser.url(`${fixture.url}?axis=${axis}`);
-      await browser.waitUntil(() =>
-        browser.execute(() => !!window.outlineResult)
-      );
-      const result = await browser.execute(() => window.outlineResult);
+    test(`outlines all four cropped edges on axis ${axis}`, async ({
+      page,
+    }) => {
+      await page.goto(`${fixture.url}?axis=${axis}`);
+      await waitForOutline(page);
+      const result = await page.evaluate(() => window.outlineResult);
       for (const edge of ['left', 'right', 'bottom', 'top'] as const) {
         expect(result[edge]).toBeGreaterThan(240);
       }
@@ -29,68 +34,66 @@ describe('Bounded label outlines', () => {
     });
   }
 
-  it('does not invent background at the scan boundary', async () => {
-    await browser.url(`${fixture.url}?axis=2&scanEdge`);
-    await browser.waitUntil(() =>
-      browser.execute(() => !!window.outlineResult)
-    );
-    const result = await browser.execute(() => window.outlineResult);
+  test('does not invent background at the scan boundary', async ({ page }) => {
+    await page.goto(`${fixture.url}?axis=2&scanEdge`);
+    await waitForOutline(page);
+    const result = await page.evaluate(() => window.outlineResult);
     expect(result.right).toBe(51);
     for (const edge of ['left', 'bottom', 'top'] as const) {
       expect(result[edge]).toBeGreaterThan(240);
     }
   });
 
-  it('matches the original full-grid mask with and without scan truncation', async () => {
+  test('matches the original full-grid mask with and without scan truncation', async ({
+    page,
+  }) => {
     for (const scanEdge of ['', '&scanEdge']) {
       const results = [];
       for (const fullGrid of ['', '&fullGrid']) {
-        await browser.url(`${fixture.url}?axis=2${scanEdge}${fullGrid}`);
-        await browser.waitUntil(() =>
-          browser.execute(() => !!window.outlineResult)
-        );
-        results.push(await browser.execute(() => window.outlineResult));
+        await page.goto(`${fixture.url}?axis=2${scanEdge}${fullGrid}`);
+        await waitForOutline(page);
+        results.push(await page.evaluate(() => window.outlineResult));
       }
       expect(results[0]).toEqual(results[1]);
     }
   });
 
-  it('keeps edges after repeated thickness and opacity updates', async () => {
-    await browser.url(`${fixture.url}?axis=2`);
-    await browser.waitUntil(() =>
-      browser.execute(() => !!window.outlineResult)
-    );
-    const highlighted = await browser.execute(() => window.renderOutline(5));
+  test('keeps edges after repeated thickness and opacity updates', async ({
+    page,
+  }) => {
+    await page.goto(`${fixture.url}?axis=2`);
+    await waitForOutline(page);
+    const highlighted = await page.evaluate(() => window.renderOutline(5));
     expect(highlighted.innerEdge).toBeGreaterThan(240);
-    const faded = await browser.execute(() => window.renderOutline(3, 0.5));
+    const faded = await page.evaluate(() => window.renderOutline(3, 0.5));
     expect(faded.left).toBeGreaterThan(120);
     expect(faded.left).toBeLessThan(135);
-    const disabled = await browser.execute(() => window.renderOutline(0));
+    const disabled = await page.evaluate(() => window.renderOutline(0));
     expect(disabled.left).toBe(51);
-    const restored = await browser.execute(() => window.renderOutline(3));
+    const restored = await page.evaluate(() => window.renderOutline(3));
     expect(restored.left).toBeGreaterThan(240);
     expect(restored.innerEdge).toBe(51);
     expect(restored.center).toBe(51);
   });
 
-  it('refreshes the reused texture after erasing and repainting the whole mask', async () => {
-    await browser.url(`${fixture.url}?axis=2`);
-    await browser.waitUntil(() =>
-      browser.execute(() => !!window.outlineResult)
-    );
-    const original = await browser.execute(() => window.outlineResult);
-    const erased = await browser.execute(() => window.editMask(0));
+  test('refreshes the reused texture after erasing and repainting the whole mask', async ({
+    page,
+  }) => {
+    await page.goto(`${fixture.url}?axis=2`);
+    await waitForOutline(page);
+    const original = await page.evaluate(() => window.outlineResult);
+    const erased = await page.evaluate(() => window.editMask(0));
     expect(Object.values(erased).every((value) => value === 0)).toBe(true);
-    const repainted = await browser.execute(() => window.editMask(1));
+    const repainted = await page.evaluate(() => window.editMask(1));
     expect(repainted).toEqual(original);
   });
 
-  it('colors every byte label in one plane without blending a neighbor', async () => {
-    await browser.url(`${fixture.url}?axis=2`);
-    await browser.waitUntil(() =>
-      browser.execute(() => !!window.outlineResult)
-    );
-    const result = await browser.execute(() => window.renderAllLabels());
+  test('colors every byte label in one plane without blending a neighbor', async ({
+    page,
+  }) => {
+    await page.goto(`${fixture.url}?axis=2`);
+    await waitForOutline(page);
+    const result = await page.evaluate(() => window.renderAllLabels());
     expect(result.planes).toBe(1);
     expect(result.mismatches).toEqual([]);
   });

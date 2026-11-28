@@ -1,24 +1,18 @@
 import path from 'node:path';
 import { writeFileSync } from 'node:fs';
-import { volViewPage } from '../pageobjects/volview.page';
-import {
-  capture2DViewScreenshotMetrics,
-  makeTempDir,
-  openThroughDialog,
-  openVolViewPage,
-  writeManifestToFile,
-  writeMetaImage,
-} from './utils';
-import {
-  addSegment,
-  openAnnotationSegments,
-  segmentNames,
-  segmentRow,
-  waitForSegmentContent,
-  segmentImageName,
-  createSegmentRow,
-} from './segmentationTestUtils';
-import { moveTo } from './annotationTestUtils';
+import type { Page } from '@playwright/test';
+import { test, expect } from '../fixtures';
+import type { VolViewPage } from '../pageobjects/volview.page';
+import type { Utils } from './utils';
+import type { AnnotationUtils } from './annotationTestUtils';
+import type { SegmentationUtils } from './segmentationTestUtils';
+
+type Helpers = {
+  page: Page;
+  volview: VolViewPage;
+  utils: Utils;
+  segmentation: SegmentationUtils;
+};
 
 type ConversionGateWindow = Window &
   typeof globalThis & {
@@ -32,8 +26,8 @@ type ConversionGateWindow = Window &
 // A different voxel grid makes this companion use the real resampling worker.
 // Holding one worker response leaves conversion pending after the primary image
 // is visible, without changing application stores or import promises.
-const installConversionGate = () =>
-  browser.addInitScript(() => {
+const installConversionGate = (page: Page) =>
+  page.addInitScript(() => {
     const gate: ConversionGateWindow['segmentationConversionGate'] = {
       armed: false,
       entered: false,
@@ -101,7 +95,8 @@ const editingTools = [
   'mdi-vector-square',
   'mdi-pentagon-outline',
 ];
-const toolButton = (icon: string) => $(`button.tool-btn:has(i.${icon})`);
+const toolButton = (page: Page, icon: string) =>
+  page.locator(`button.tool-btn:has(i.${icon})`);
 
 const writeVolume = (
   filePath: string,
@@ -130,16 +125,19 @@ const writeVolume = (
   writeFileSync(filePath, Buffer.concat([Buffer.from(header), voxels]));
 };
 
-const prepareSelectedPaint = async (stem: string) => {
-  const imageName = writeMetaImage(`${stem}-source.mha`, { size: 16 });
-  await writeManifestToFile(
+const prepareSelectedPaint = async (
+  { page, volview, utils, segmentation }: Helpers,
+  stem: string
+) => {
+  const imageName = utils.writeMetaImage(`${stem}-source.mha`, { size: 16 });
+  await utils.writeManifestToFile(
     {
       layouts: { Axial: [['axial']] },
       segments: { Liver: { color: '#ff0000' }, Kidney: { color: '#00ff00' } },
     },
     `${stem}-source-config.json`
   );
-  await writeManifestToFile(
+  await utils.writeManifestToFile(
     {
       resources: [
         { url: '/tmp/' + imageName },
@@ -148,127 +146,175 @@ const prepareSelectedPaint = async (stem: string) => {
     },
     `${stem}-source.json`
   );
-  await openVolViewPage(`${stem}-source.json`);
-  await openAnnotationSegments();
-  await browser.waitUntil(
-    async () => (await segmentNames()).join(',') === 'Liver,Kidney'
+  await utils.openVolViewPage(`${stem}-source.json`);
+  await segmentation.openAnnotationSegments();
+  await expect
+    .poll(async () => (await segmentation.segmentNames()).join(','))
+    .toBe('Liver,Kidney');
+  await volview.activatePaint();
+  await expect(toolButton(page, 'mdi-brush')).toHaveClass(
+    /\btool-btn-selected\b/
   );
-  await volViewPage.activatePaint();
-  await expect(toolButton('mdi-brush')).toHaveElementClass('tool-btn-selected');
 
   // Clear Scene keeps the selected tool and configured seed definitions. This
   // also leaves the views empty, so the next ordinary import shows its primary.
-  await browser.keys(['Control', '/']);
-  await browser.waitUntil(async () => (await segmentNames()).length === 0);
-  await expect(createSegmentRow()).toBeDisabled();
+  await page.keyboard.press('Control+/');
+  await expect
+    .poll(async () => (await segmentation.segmentNames()).length)
+    .toBe(0);
+  await expect(segmentation.createSegmentRow()).toBeDisabled();
 };
 
-const imageMetrics = async () =>
-  (await capture2DViewScreenshotMetrics('segmentation-loading.png'))[0];
+const imageMetrics = async (utils: Utils) =>
+  (await utils.capture2DViewScreenshotMetrics('segmentation-loading.png'))[0];
 
-const moveOutsideImage = () => moveTo(10, 10);
+const moveOutsideImage = (annotation: AnnotationUtils) =>
+  annotation.moveTo(10, 10);
 
-const expectEditingEnabled = async () => {
-  await expect(createSegmentRow()).toBeEnabled();
+const expectEditingEnabled = async ({ page, segmentation }: Helpers) => {
+  await expect(segmentation.createSegmentRow()).toBeEnabled();
   for (const icon of editingTools) {
-    await expect(toolButton(icon)).toBeDisplayed();
-    await expect(toolButton(icon)).toBeEnabled();
+    await expect(toolButton(page, icon)).toBeVisible();
+    await expect(toolButton(page, icon)).toBeEnabled();
   }
 };
 
-describe('Segment definitions during companion loading', () => {
-  before(installConversionGate);
-
-  const loadCompanionWhile = async (
-    stem: string,
-    duringConversion: () => Promise<void>
-  ) => {
-    const directory = makeTempDir(stem);
-    writeVolume(path.join(directory, 'primary.nrrd'), 16, 1);
-    writeVolume(path.join(directory, 'primary.seg.nrrd'), 8, 2, true);
-    const manifest = await writeManifestToFile(
-      {
-        resources: [
-          { url: `/tmp/${stem}/primary.nrrd`, name: 'primary.nrrd' },
-          { url: `/tmp/${stem}/primary.seg.nrrd`, name: 'primary.seg.nrrd' },
-        ],
-      },
-      `${stem}-batch.json`
-    );
-    await prepareSelectedPaint(stem);
-    await browser.execute(() => {
-      const gate = (window as ConversionGateWindow).segmentationConversionGate;
-      gate.armed = true;
-      gate.entered = false;
-    });
-    try {
-      await openThroughDialog(manifest);
-      await browser.waitUntil(
+const loadCompanionWhile = async (
+  helpers: Helpers,
+  stem: string,
+  duringConversion: () => Promise<void>
+) => {
+  const { page, utils, segmentation } = helpers;
+  const directory = utils.makeTempDir(stem);
+  writeVolume(path.join(directory, 'primary.nrrd'), 16, 1);
+  writeVolume(path.join(directory, 'primary.seg.nrrd'), 8, 2, true);
+  const manifest = await utils.writeManifestToFile(
+    {
+      resources: [
+        { url: `/tmp/${stem}/primary.nrrd`, name: 'primary.nrrd' },
+        { url: `/tmp/${stem}/primary.seg.nrrd`, name: 'primary.seg.nrrd' },
+      ],
+    },
+    `${stem}-batch.json`
+  );
+  await prepareSelectedPaint(helpers, stem);
+  await page.evaluate(() => {
+    const gate = (window as ConversionGateWindow).segmentationConversionGate;
+    gate.armed = true;
+    gate.entered = false;
+  });
+  try {
+    await utils.openThroughDialog(manifest);
+    await expect
+      .poll(
         () =>
-          browser.execute(
+          page.evaluate(
             () =>
               (window as ConversionGateWindow).segmentationConversionGate
                 .entered
           ),
         {
-          timeoutMsg:
+          message:
             'Expected companion segmentation resampling to reach the worker gate',
         }
-      );
-      await openAnnotationSegments();
-      await expect(segmentImageName()).toHaveText('primary.nrrd');
-      await expectEditingEnabled();
-      expect(await segmentNames()).toEqual(['Liver', 'Kidney']);
-      await duringConversion();
-    } finally {
-      await browser.execute(() => {
-        const gate = (window as ConversionGateWindow)
-          .segmentationConversionGate;
-        gate.armed = false;
-        gate.release?.();
-      });
-    }
-    await waitForSegmentContent('Tumor');
-  };
-
-  it('merges the companion segmentation into the configured definitions', async () => {
-    await loadCompanionWhile('segmentation-loading', async () => {});
-
-    expect(await segmentNames()).toEqual(['Liver', 'Kidney', 'Tumor']);
-    await browser.waitUntil(async () => (await imageMetrics()).colored > 0, {
-      timeoutMsg:
-        'Expected the incoming Tumor mask to render on the primary image',
+      )
+      .toBe(true);
+    await segmentation.openAnnotationSegments();
+    await expect(segmentation.segmentImageName()).toHaveText('primary.nrrd');
+    await expectEditingEnabled(helpers);
+    expect(await segmentation.segmentNames()).toEqual(['Liver', 'Kidney']);
+    await duringConversion();
+  } finally {
+    await page.evaluate(() => {
+      const gate = (window as ConversionGateWindow).segmentationConversionGate;
+      gate.armed = false;
+      gate.release?.();
     });
-    expect(await volViewPage.getNotificationsCount()).toBe(0);
+  }
+  await segmentation.waitForSegmentContent('Tumor');
+};
+
+test.describe('Segment definitions during companion loading', () => {
+  test.beforeEach(({ page }) => installConversionGate(page));
+
+  test('merges the companion segmentation into the configured definitions', async ({
+    page,
+    volview,
+    utils,
+    segmentation,
+  }) => {
+    await loadCompanionWhile(
+      { page, volview, utils, segmentation },
+      'segmentation-loading',
+      async () => {}
+    );
+
+    expect(await segmentation.segmentNames()).toEqual([
+      'Liver',
+      'Kidney',
+      'Tumor',
+    ]);
+    await expect
+      .poll(async () => (await imageMetrics(utils)).colored, {
+        message:
+          'Expected the incoming Tumor mask to render on the primary image',
+      })
+      .toBeGreaterThan(0);
+    expect(await volview.getNotificationsCount()).toBe(0);
   });
 
-  it('keeps definitions painted before the companion segmentation lands', async () => {
-    await loadCompanionWhile('segmentation-loading-painted', async () => {
-      await volViewPage.paintStrokeOnView((await volViewPage.getViews2D())[0]);
-      await moveOutsideImage();
-      await browser.waitUntil(async () => (await imageMetrics()).colored > 0, {
-        timeoutMsg: 'Expected the Liver stroke before conversion completes',
-      });
-    });
+  test('keeps definitions painted before the companion segmentation lands', async ({
+    page,
+    volview,
+    utils,
+    annotation,
+    segmentation,
+  }) => {
+    await loadCompanionWhile(
+      { page, volview, utils, segmentation },
+      'segmentation-loading-painted',
+      async () => {
+        await volview.paintStrokeOnView(volview.views2D.first());
+        await moveOutsideImage(annotation);
+        await expect
+          .poll(async () => (await imageMetrics(utils)).colored, {
+            message: 'Expected the Liver stroke before conversion completes',
+          })
+          .toBeGreaterThan(0);
+      }
+    );
 
-    expect(await segmentNames()).toEqual(['Liver', 'Kidney', 'Tumor']);
-    await waitForSegmentContent('Liver');
-    await (await segmentRow('Tumor'))
-      .$('button[aria-label="Hide Tumor"]')
+    expect(await segmentation.segmentNames()).toEqual([
+      'Liver',
+      'Kidney',
+      'Tumor',
+    ]);
+    await segmentation.waitForSegmentContent('Liver');
+    await (await segmentation.segmentRow('Tumor'))
+      .locator('button[aria-label="Hide Tumor"]')
       .click();
-    await browser.waitUntil(async () => (await imageMetrics()).colored > 0, {
-      timeoutMsg:
-        'Expected the original Liver stroke after conversion completes',
-    });
-    expect(await volViewPage.getNotificationsCount()).toBe(0);
+    await expect
+      .poll(async () => (await imageMetrics(utils)).colored, {
+        message:
+          'Expected the original Liver stroke after conversion completes',
+      })
+      .toBeGreaterThan(0);
+    expect(await volview.getNotificationsCount()).toBe(0);
   });
 
-  it('treats an explicitly empty companion configuration as ready and editable', async () => {
+  test('treats an explicitly empty companion configuration as ready and editable', async ({
+    page,
+    volview,
+    utils,
+    annotation,
+    segmentation,
+  }) => {
+    const helpers = { page, volview, utils, segmentation };
     const stem = 'segmentation-loading-empty';
-    const directory = makeTempDir(stem);
+    const directory = utils.makeTempDir(stem);
     writeVolume(path.join(directory, 'empty.nrrd'), 16, 1);
-    await writeManifestToFile({ segments: {} }, `${stem}-config.json`);
-    const manifest = await writeManifestToFile(
+    await utils.writeManifestToFile({ segments: {} }, `${stem}-config.json`);
+    const manifest = await utils.writeManifestToFile(
       {
         resources: [
           { url: `/tmp/${stem}/empty.nrrd`, name: 'empty.nrrd' },
@@ -277,18 +323,20 @@ describe('Segment definitions during companion loading', () => {
       },
       `${stem}-batch.json`
     );
-    await prepareSelectedPaint(stem);
-    await openThroughDialog(manifest);
-    await openAnnotationSegments();
-    await expect(segmentImageName()).toHaveText('empty.nrrd');
-    await expectEditingEnabled();
-    expect(await segmentNames()).toEqual([]);
-    await addSegment();
-    expect(await segmentNames()).toEqual(['Segment 1']);
-    await volViewPage.paintStrokeOnView((await volViewPage.getViews2D())[0]);
-    await moveOutsideImage();
-    await waitForSegmentContent('Segment 1');
-    await browser.waitUntil(async () => (await imageMetrics()).colored > 0);
-    expect(await volViewPage.getNotificationsCount()).toBe(0);
+    await prepareSelectedPaint(helpers, stem);
+    await utils.openThroughDialog(manifest);
+    await segmentation.openAnnotationSegments();
+    await expect(segmentation.segmentImageName()).toHaveText('empty.nrrd');
+    await expectEditingEnabled(helpers);
+    expect(await segmentation.segmentNames()).toEqual([]);
+    await segmentation.addSegment();
+    expect(await segmentation.segmentNames()).toEqual(['Segment 1']);
+    await volview.paintStrokeOnView(volview.views2D.first());
+    await moveOutsideImage(annotation);
+    await segmentation.waitForSegmentContent('Segment 1');
+    await expect
+      .poll(async () => (await imageMetrics(utils)).colored)
+      .toBeGreaterThan(0);
+    expect(await volview.getNotificationsCount()).toBe(0);
   });
 });

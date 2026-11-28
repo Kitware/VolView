@@ -5,9 +5,11 @@
 // the series has to reach a usable state anyway.
 import * as path from 'path';
 import * as fs from 'fs';
-import { volViewPage } from '../pageobjects/volview.page';
+import type { Page } from '@playwright/test';
+import { test, expect } from '../fixtures';
+import type { VolViewPage } from '../pageobjects/volview.page';
 import { buildSyntheticDicom, newUid } from './syntheticDicom';
-import { makeTempDir, writeManifestToFile } from './utils';
+import type { Utils } from './utils';
 
 const IMAGE_ORIENTATION_PATIENT = [1, 0, 0, 0, 1, 0] as const;
 const SLICE_COUNT = 5;
@@ -19,15 +21,15 @@ const BIG_ROWS = 8;
 const BIG_COLS = 10;
 
 type Size = { rows: number; cols: number };
+type Layout = { series: Size; outlier: Size; outlierSlice: number };
 
 async function writeSeries(
+  utils: Utils,
   dirName: string,
-  series: Size,
-  outlier: Size,
-  outlierSlice: number,
+  { series, outlier, outlierSlice }: Layout,
   manifestName: string
 ) {
-  const dir = makeTempDir(dirName);
+  const dir = utils.makeTempDir(dirName);
 
   const studyUid = newUid();
   const seriesUid = newUid();
@@ -57,14 +59,14 @@ async function writeSeries(
     resources.push({ url: `tmp/${dirName}/${filename}`, name: filename });
   }
 
-  await writeManifestToFile({ resources }, manifestName);
+  await utils.writeManifestToFile({ resources }, manifestName);
 
   return outlierSopUid;
 }
 
 // The slice count in the "Slice: n/total" overlay of the first 2D view.
-async function getRenderedSliceCount() {
-  return browser.execute((selector: string) => {
+async function getRenderedSliceCount(page: Page) {
+  return page.evaluate((selector: string) => {
     const view = document.querySelector(selector);
     const match = view?.textContent?.match(/Slice:\s*\d+\s*\/\s*(\d+)/);
     return match ? parseInt(match[1], 10) : null;
@@ -73,62 +75,74 @@ async function getRenderedSliceCount() {
 
 // A rejected chunk is terminal, so the views stop advertising progress even
 // though part of the series never arrived.
-async function waitForSeriesToSettle() {
-  await volViewPage.waitForViews();
-  await browser.waitUntil(
-    async () => (await getRenderedSliceCount()) === SLICE_COUNT,
-    {
-      timeout: 30000,
-      timeoutMsg: `expected the 2D view to show a ${SLICE_COUNT} slice volume`,
-    }
-  );
-  await browser.waitUntil(
-    async () => (await $$('.loading-indicator').length) === 0,
-    {
-      timeout: 30000,
-      timeoutMsg: 'expected the views to stop showing a loading indicator',
-    }
-  );
+async function waitForSeriesToSettle(page: Page, volview: VolViewPage) {
+  await volview.waitForViews();
+  await expect
+    .poll(() => getRenderedSliceCount(page), {
+      message: `expected the 2D view to show a ${SLICE_COUNT} slice volume`,
+    })
+    .toBe(SLICE_COUNT);
+  await expect(
+    page.locator('.loading-indicator'),
+    'expected the views to stop showing a loading indicator'
+  ).toHaveCount(0);
 }
 
-async function readErrorDetails() {
-  await volViewPage.notifications.click();
+async function readErrorDetails(page: Page, volview: VolViewPage) {
+  await volview.notifications.click();
 
-  const errorPanel = $('.message-center .v-expansion-panel-title');
-  await errorPanel.waitForClickable();
-  await errorPanel.click();
+  await page
+    .locator('.message-center .v-expansion-panel-title')
+    .first()
+    .click();
 
-  const details = $('.message-center pre.details');
-  await details.waitForDisplayed();
+  const details = page.locator('.message-center pre.details').first();
+  await expect(details).toBeVisible();
   // The panel animates open, so the text arrives a frame after the element.
-  await browser.waitUntil(async () => (await details.getText()).length > 0, {
-    timeout: 5000,
-    timeoutMsg: 'expected the error details to render',
-  });
-  return details.getText();
+  await expect
+    .poll(async () => (await details.innerText()).length, {
+      message: 'expected the error details to render',
+    })
+    .toBeGreaterThan(0);
+  return details.innerText();
 }
 
-async function loadAndReadRejection(manifestName: string) {
-  await volViewPage.open(`?urls=[tmp/${manifestName}]`);
-  await volViewPage.waitForNotification();
-  await waitForSeriesToSettle();
-  const errorCount = await volViewPage.getNotificationsCount();
-  const text = await readErrorDetails();
+async function loadAndReadRejection(
+  page: Page,
+  volview: VolViewPage,
+  manifestName: string
+) {
+  await volview.open(`?urls=[tmp/${manifestName}]`);
+  await volview.waitForNotification();
+  await waitForSeriesToSettle(page, volview);
+  const errorCount = await volview.getNotificationsCount();
+  const text = await readErrorDetails(page, volview);
   return { text, errorCount };
 }
 
-describe('DICOM series with an instance of a different size', () => {
-  it('names the offending file when it overruns its slot', async () => {
+test.describe('DICOM series with an instance of a different size', () => {
+  test('names the offending file when it overruns its slot', async ({
+    page,
+    volview,
+    utils,
+  }) => {
     const manifestName = `dimension-mismatch-big-${Date.now()}.json`;
     const outlierSopUid = await writeSeries(
+      utils,
       'dimension-mismatch-big',
-      { rows: SMALL_ROWS, cols: SMALL_COLS },
-      { rows: BIG_ROWS, cols: BIG_COLS },
-      MIDDLE_SLICE,
+      {
+        series: { rows: SMALL_ROWS, cols: SMALL_COLS },
+        outlier: { rows: BIG_ROWS, cols: BIG_COLS },
+        outlierSlice: MIDDLE_SLICE,
+      },
       manifestName
     );
 
-    const { text, errorCount } = await loadAndReadRejection(manifestName);
+    const { text, errorCount } = await loadAndReadRejection(
+      page,
+      volview,
+      manifestName
+    );
 
     expect(text).toContain(outlierSopUid);
     expect(text).toContain(`${BIG_COLS}x${BIG_ROWS}x1`);
@@ -142,17 +156,28 @@ describe('DICOM series with an instance of a different size', () => {
 
   // An under-sized instance fits inside its slot, so the write itself cannot
   // detect it; only the metadata comparison can.
-  it('names the offending file when it underfills its slot', async () => {
+  test('names the offending file when it underfills its slot', async ({
+    page,
+    volview,
+    utils,
+  }) => {
     const manifestName = `dimension-mismatch-small-${Date.now()}.json`;
     const outlierSopUid = await writeSeries(
+      utils,
       'dimension-mismatch-small',
-      { rows: BIG_ROWS, cols: BIG_COLS },
-      { rows: SMALL_ROWS, cols: SMALL_COLS },
-      MIDDLE_SLICE,
+      {
+        series: { rows: BIG_ROWS, cols: BIG_COLS },
+        outlier: { rows: SMALL_ROWS, cols: SMALL_COLS },
+        outlierSlice: MIDDLE_SLICE,
+      },
       manifestName
     );
 
-    const { text, errorCount } = await loadAndReadRejection(manifestName);
+    const { text, errorCount } = await loadAndReadRejection(
+      page,
+      volview,
+      manifestName
+    );
 
     expect(text).toContain(outlierSopUid);
     expect(text).toContain(`${SMALL_COLS}x${SMALL_ROWS}x1`);
@@ -162,17 +187,28 @@ describe('DICOM series with an instance of a different size', () => {
 
   // Both axes differing would still be caught if either half of the comparison
   // were dropped; a single differing axis pins down both halves.
-  it('rejects an instance that differs on rows alone', async () => {
+  test('rejects an instance that differs on rows alone', async ({
+    page,
+    volview,
+    utils,
+  }) => {
     const manifestName = `dimension-mismatch-rows-${Date.now()}.json`;
     const outlierSopUid = await writeSeries(
+      utils,
       'dimension-mismatch-rows',
-      { rows: SMALL_ROWS, cols: SMALL_COLS },
-      { rows: BIG_ROWS, cols: SMALL_COLS },
-      MIDDLE_SLICE,
+      {
+        series: { rows: SMALL_ROWS, cols: SMALL_COLS },
+        outlier: { rows: BIG_ROWS, cols: SMALL_COLS },
+        outlierSlice: MIDDLE_SLICE,
+      },
       manifestName
     );
 
-    const { text, errorCount } = await loadAndReadRejection(manifestName);
+    const { text, errorCount } = await loadAndReadRejection(
+      page,
+      volview,
+      manifestName
+    );
 
     expect(text).toContain(outlierSopUid);
     expect(text).toContain(`${SMALL_COLS}x${BIG_ROWS}x1`);
@@ -183,17 +219,28 @@ describe('DICOM series with an instance of a different size', () => {
   // The volume is sized from the first instance, so an outlier there rejects
   // every other chunk, one error apiece. Collapsing them into a single
   // notification belongs with the error-boundary work in issue 911.
-  it('rejects the rest of the series when the first instance is the outlier', async () => {
+  test('rejects the rest of the series when the first instance is the outlier', async ({
+    page,
+    volview,
+    utils,
+  }) => {
     const manifestName = `dimension-mismatch-first-${Date.now()}.json`;
     const outlierSopUid = await writeSeries(
+      utils,
       'dimension-mismatch-first',
-      { rows: SMALL_ROWS, cols: SMALL_COLS },
-      { rows: BIG_ROWS, cols: BIG_COLS },
-      0,
+      {
+        series: { rows: SMALL_ROWS, cols: SMALL_COLS },
+        outlier: { rows: BIG_ROWS, cols: BIG_COLS },
+        outlierSlice: 0,
+      },
       manifestName
     );
 
-    const { text, errorCount } = await loadAndReadRejection(manifestName);
+    const { text, errorCount } = await loadAndReadRejection(
+      page,
+      volview,
+      manifestName
+    );
 
     expect(errorCount).toBe(SLICE_COUNT - 1);
     // The first instance defines the volume, so it is the other four that are

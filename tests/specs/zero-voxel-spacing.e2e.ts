@@ -1,25 +1,29 @@
-import { volViewPage } from '../pageobjects/volview.page';
-import { writeManifestToFile, writeMetaImage } from './utils';
+import { test, expect } from '../fixtures';
 
-describe('An image with zero voxel spacing', () => {
-  it('can be painted and reports the invalid spacing', async () => {
+test.describe('An image with zero voxel spacing', () => {
+  test('can be painted and reports the invalid spacing', async ({
+    volview,
+    utils,
+  }) => {
     // itk-wasm passes a MetaImage's zero ElementSpacing through unchanged.
-    const fileName = writeMetaImage(`zero-voxel-spacing-${Date.now()}.mha`, {
-      spacing: '0 1 1',
-    });
+    const fileName = utils.writeMetaImage(
+      `zero-voxel-spacing-${Date.now()}.mha`,
+      {
+        spacing: '0 1 1',
+      }
+    );
     const manifestName = `zero-voxel-spacing-${Date.now()}.json`;
-    await writeManifestToFile(
+    await utils.writeManifestToFile(
       { resources: [{ url: `/tmp/${fileName}`, name: fileName }] },
       manifestName
     );
 
-    await volViewPage.open(`?urls=[tmp/${manifestName}]`);
-    await volViewPage.waitForViews();
-    await volViewPage.activatePaint();
-    const views2D = await volViewPage.getViews2D();
-    await volViewPage.paintStrokeOnView(views2D[0]);
+    await volview.open(`?urls=[tmp/${manifestName}]`);
+    await volview.waitForViews();
+    await volview.activatePaint();
+    await volview.paintStrokeOnView(volview.views2D.first());
 
-    expect(await volViewPage.getNotificationTitles()).toEqual([
+    expect(await volview.getNotificationTitles()).toEqual([
       'Invalid voxel spacing',
     ]);
   });

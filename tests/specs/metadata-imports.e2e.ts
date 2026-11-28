@@ -1,26 +1,22 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import JSZip from 'jszip';
-import { TEMP_DIR } from '../../wdio.shared.conf';
-import { volViewPage } from '../pageobjects/volview.page';
-import { makeTempDir, openThroughDialog, writeMetaImage } from './utils';
+import { test, expect } from '../fixtures';
 
 const STEM = 'metadata-imports';
 
-const notificationTitles = async () => {
-  await volViewPage.notifications.click();
-  const titles = $$('.message-center .v-expansion-panel-title .header > span');
-  await titles[0].waitForDisplayed();
-  return titles.map((title) => title.getText());
-};
-
-describe('Importing beside macOS metadata and LICENSE files', () => {
-  it('loads the image and skips the other files without errors', async () => {
-    const directory = makeTempDir(STEM);
-    const image = writeMetaImage('metadata-imports-scan.mha');
+test.describe('Importing beside macOS metadata and LICENSE files', () => {
+  test('loads the image and skips the other files without errors', async ({
+    page,
+    volview,
+    utils,
+    scratch,
+  }) => {
+    const directory = utils.makeTempDir(STEM);
+    const image = utils.writeMetaImage('metadata-imports-scan.mha');
     // The layout macOS Archive Utility produces for a compressed folder.
     const zip = new JSZip();
-    zip.file(`scan/${image}`, readFileSync(path.join(TEMP_DIR, image)));
+    zip.file(`scan/${image}`, readFileSync(scratch.path(image)));
     zip.file('scan/.DS_Store', 'Finder metadata');
     zip.file('scan/LICENSE', 'Terms');
     zip.file('__MACOSX/._scan', 'AppleDouble');
@@ -35,21 +31,28 @@ describe('Importing beside macOS metadata and LICENSE files', () => {
       (name) => `tmp/${STEM}/${name}`
     );
 
-    await volViewPage.open(`?urls=[${urls.join(',')}]`);
+    await volview.open(`?urls=[${urls.join(',')}]`);
 
-    await volViewPage.waitForViews();
-    await expect($(`.image-list-card [title="${image}"]`)).toBeDisplayed();
-    expect(await volViewPage.getNotificationsCount()).toBe(0);
+    await volview.waitForViews();
+    await expect(
+      page.locator(`.image-list-card [title="${image}"]`)
+    ).toBeVisible();
+    expect(await volview.getNotificationsCount()).toBe(0);
   });
 
-  it('explains why opening only a LICENSE file loads nothing', async () => {
-    const directory = makeTempDir(STEM);
+  test('explains why opening only a LICENSE file loads nothing', async ({
+    volview,
+    utils,
+  }) => {
+    const directory = utils.makeTempDir(STEM);
     const license = path.join(directory, 'LICENSE');
     writeFileSync(license, 'Terms');
 
-    await volViewPage.open();
-    await openThroughDialog(license);
+    await volview.open();
+    await utils.openThroughDialog(license);
 
-    expect(await notificationTitles()).toEqual(['No supported files to load']);
+    expect(await volview.getNotificationTitles()).toEqual([
+      'No supported files to load',
+    ]);
   });
 });

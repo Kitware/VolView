@@ -1,15 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createNrrdVolume } from '../fixtures/oct/volumes';
-import { volViewPage } from '../pageobjects/volview.page';
-import {
-  chooseEnFaceProjection,
-  setEnFaceWindow,
-  waitForEnFaceReady,
-  VIEWER,
-  setEnFaceSlab,
-} from './octTestUtils';
-import { makeTempDir, writeManifestToFile } from './utils';
+import type { Page } from '@playwright/test';
+import { test, expect } from '../fixtures';
+import type { VolViewPage } from '../pageobjects/volview.page';
+import { VIEWER, type OctUtils } from './octTestUtils';
+import type { Utils } from './utils';
 
 const STEM = 'slab-orientation';
 const SOURCE = '[data-testid~="vtk-two-view"] canvas';
@@ -28,7 +24,13 @@ const frames = [
   },
 ];
 
-async function stage(axis: number, frame: (typeof frames)[number]) {
+type Helpers = { volview: VolViewPage; utils: Utils; oct: OctUtils };
+
+async function stage(
+  { volview, utils, oct }: Helpers,
+  axis: number,
+  frame: (typeof frames)[number]
+) {
   const axes = [0, 1, 2].filter((candidate) => candidate !== axis);
   const dimensions = [1, 1, 1];
   dimensions[axis] = 96;
@@ -52,7 +54,7 @@ async function stage(axis: number, frame: (typeof frames)[number]) {
     }
   );
   fs.writeFileSync(
-    path.join(makeTempDir(STEM), 'source.nrrd'),
+    path.join(utils.makeTempDir(STEM), 'source.nrrd'),
     createNrrdVolume({
       scalars,
       dimensions,
@@ -61,7 +63,7 @@ async function stage(axis: number, frame: (typeof frames)[number]) {
       direction: frame.direction,
     })
   );
-  await writeManifestToFile(
+  await utils.writeManifestToFile(
     {
       layouts: {
         Orientation: [[frame.axes[axis].toLowerCase(), 'enface']],
@@ -69,12 +71,12 @@ async function stage(axis: number, frame: (typeof frames)[number]) {
     },
     STEM + '.json'
   );
-  await volViewPage.open(`?urls=[tmp/${STEM}.json,tmp/${STEM}/source.nrrd]`);
-  await waitForEnFaceReady();
+  await volview.open(`?urls=[tmp/${STEM}.json,tmp/${STEM}/source.nrrd]`);
+  await oct.waitForEnFaceReady();
 }
 
-function markerFrame(selector: string) {
-  return browser.execute((canvasSelector) => {
+function markerFrame(page: Page, selector: string) {
+  return page.evaluate((canvasSelector) => {
     const canvas = document.querySelector<HTMLCanvasElement>(canvasSelector)!;
     const capture = document.createElement('canvas');
     capture.width = canvas.width;
@@ -135,42 +137,49 @@ function markerFrame(selector: string) {
   }, selector);
 }
 
-async function expectMatchingOrientation() {
-  await browser.waitUntil(
-    async () => {
-      const [source, slab] = await Promise.all([
-        markerFrame(SOURCE),
-        markerFrame(VIEWER + ' canvas'),
-      ]);
-      return (
-        !!source &&
-        !!slab &&
-        source.every((value, index) => Math.abs(value - slab[index]) < 0.025)
-      );
-    },
-    {
-      timeoutMsg: 'Expected slab landmarks to match ordinary slice orientation',
-    }
-  );
+async function expectMatchingOrientation(page: Page) {
+  await expect
+    .poll(
+      async () => {
+        const [source, slab] = await Promise.all([
+          markerFrame(page, SOURCE),
+          markerFrame(page, VIEWER + ' canvas'),
+        ]);
+        return (
+          !!source &&
+          !!slab &&
+          source.every((value, index) => Math.abs(value - slab[index]) < 0.025)
+        );
+      },
+      {
+        message: 'Expected slab landmarks to match ordinary slice orientation',
+      }
+    )
+    .toBe(true);
 }
 
-describe('Slab orientation follows ordinary volume views', () => {
+test.describe('Slab orientation follows ordinary volume views', () => {
   for (const frame of frames) {
     for (const axis of [0, 1, 2]) {
-      it(`matches ${frame.axes[axis]} for ${frame.name} source axis ${axis}`, async () => {
-        await stage(axis, frame);
-        await chooseEnFaceProjection(
+      test(`matches ${frame.axes[axis]} for ${frame.name} source axis ${axis}`, async ({
+        page,
+        volview,
+        utils,
+        oct,
+      }) => {
+        await stage({ volview, utils, oct }, axis, frame);
+        await oct.chooseEnFaceProjection(
           'enface-projection-axis',
           frame.axes[axis]
         );
-        await setEnFaceWindow(220, 130);
-        await setEnFaceSlab(48, 48);
-        await expectMatchingOrientation();
+        await oct.setEnFaceWindow(220, 130);
+        await oct.setEnFaceSlab(48, 48);
+        await expectMatchingOrientation(page);
         for (const depth of [95, 0]) {
-          await setEnFaceSlab(depth, depth);
-          await expectMatchingOrientation();
+          await oct.setEnFaceSlab(depth, depth);
+          await expectMatchingOrientation(page);
         }
-        expect(await volViewPage.getNotificationsCount()).toBe(0);
+        expect(await volview.getNotificationsCount()).toBe(0);
       });
     }
   }

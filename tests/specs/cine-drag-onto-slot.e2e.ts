@@ -2,9 +2,9 @@
 // stores a 3D viewInfo. When cine binds to it, the slot renders as
 // CineViewer (data wins over slot type). Dragging a volume onto that same
 // slot reverts it to VolumeViewer because viewInfo was never mutated.
+import type { Page } from '@playwright/test';
 import { CINE_US_DATASET, PROSTATEX_DATASET } from '../datasets';
-import { openUrls } from './utils';
-import { volViewPage } from '../pageobjects/volview.page';
+import { test, expect } from '../fixtures';
 
 const IMAGE_DRAG_MEDIA_TYPE = 'application/x-volview-image-id';
 
@@ -12,11 +12,12 @@ const IMAGE_DRAG_MEDIA_TYPE = 'application/x-volview-image-id';
 // stamps the imageID into the dataTransfer), then synthesizes drop on the
 // target grid-item. Stays on the user-facing path (DOM only).
 async function dragCardOntoGridItem(
+  page: Page,
   sourceCardSelector: string,
   targetGridItemIndex: number
-): Promise<boolean> {
-  return browser.execute(
-    (cardSelector: string, gridItemIdx: number, mediaType: string) => {
+) {
+  return page.evaluate(
+    ({ cardSelector, gridItemIdx, mediaType }) => {
       const card = document.querySelector(cardSelector) as HTMLElement | null;
       if (!card) return false;
 
@@ -38,15 +39,17 @@ async function dragCardOntoGridItem(
       );
       return true;
     },
-    sourceCardSelector,
-    targetGridItemIndex,
-    IMAGE_DRAG_MEDIA_TYPE
+    {
+      cardSelector: sourceCardSelector,
+      gridItemIdx: targetGridItemIndex,
+      mediaType: IMAGE_DRAG_MEDIA_TYPE,
+    }
   );
 }
 
 // Returns one of 'cine' | 'volume' | 'two' | 'empty' for a given grid-item.
-async function gridItemKind(index: number) {
-  return browser.execute((idx: number) => {
+async function gridItemKind(page: Page, index: number) {
+  return page.evaluate((idx: number) => {
     const item = document.querySelectorAll('.grid-item')[idx] as
       | HTMLElement
       | undefined;
@@ -58,40 +61,41 @@ async function gridItemKind(index: number) {
   }, index);
 }
 
-describe('Drag cine onto a non-2D slot', () => {
-  it('dropping cine onto the 3D slot renders cine, and a volume restores 3D', async () => {
-    await openUrls([PROSTATEX_DATASET, CINE_US_DATASET]);
-    await volViewPage.waitForViews();
-    await browser.waitUntil(
-      async () => (await $$('.volume-card').length) >= 2,
-      { timeout: 30000, timeoutMsg: 'Expected both volume cards to appear' }
-    );
+test.describe('Drag cine onto a non-2D slot', () => {
+  test('dropping cine onto the 3D slot renders cine, and a volume restores 3D', async ({
+    page,
+    utils,
+  }) => {
     // Four Up layout: axial / coronal / sagittal / volume(3D), 4 grid-items.
-    await browser.waitUntil(async () => (await $$('.grid-item').length) === 4, {
-      timeout: 10000,
-      timeoutMsg: 'Expected the Four Up layout (4 slots)',
-    });
+    await utils.openTwoImagesInFourUp([PROSTATEX_DATASET, CINE_US_DATASET]);
 
     // Fixture metadata identifies the cine independently of the active pane.
     expect(
-      await dragCardOntoGridItem('.volume-card[html-title="Post-Stress"]', 3)
+      await dragCardOntoGridItem(
+        page,
+        '.volume-card[html-title="Post-Stress"]',
+        3
+      )
     ).toBe(true);
-    await browser.waitUntil(async () => (await gridItemKind(3)) === 'cine', {
-      timeout: 10000,
-      timeoutMsg: 'Expected the 3D slot to render cine after the cine drop',
-    });
+    await expect
+      .poll(() => gridItemKind(page, 3), {
+        message: 'Expected the 3D slot to render cine after the cine drop',
+      })
+      .toBe('cine');
 
     const dropped = await dragCardOntoGridItem(
+      page,
       '.volume-card:not([html-title="Post-Stress"])',
       3
     );
     expect(dropped).toBe(true);
 
     // The slot's stored 3D viewInfo was never mutated → swap back to volume.
-    await browser.waitUntil(async () => (await gridItemKind(3)) === 'volume', {
-      timeout: 10000,
-      timeoutMsg:
-        'Expected the slot to revert to VolumeViewer after the volume drop',
-    });
+    await expect
+      .poll(() => gridItemKind(page, 3), {
+        message:
+          'Expected the slot to revert to VolumeViewer after the volume drop',
+      })
+      .toBe('volume');
   });
 });

@@ -1,85 +1,92 @@
-import { type ChainablePromiseElement } from 'webdriverio';
-import AppPage from '../pageobjects/volview.page';
-import {
-  clickAt,
-  nudgeTo,
-  pressAtPointer,
-  setupTest,
-  waitForCircleCount,
-} from './annotationTestUtils';
-import { writeMetaImage } from './utils';
+import type { Locator } from '@playwright/test';
+import { test, expect } from '../fixtures';
+import type { VolViewPage } from '../pageobjects/volview.page';
+import type { AnnotationUtils } from './annotationTestUtils';
 
 // BoundingRectangle.vue draws this around the selected annotation
-const getSelectionRectCount = async (axialView: ChainablePromiseElement) => {
-  const rects = await axialView.$$('svg rect[stroke="lightgray"]');
-  return rects.length;
-};
+const selectionRects = (axialView: Locator) =>
+  axialView.locator('svg rect[stroke="lightgray"]');
 
 const waitForSelectionRectCount = (
-  axialView: ChainablePromiseElement,
+  axialView: Locator,
   expected: number,
-  timeoutMsg: string
-) =>
-  browser.waitUntil(
-    async () => (await getSelectionRectCount(axialView)) === expected,
-    { timeout: 5000, timeoutMsg }
-  );
+  message: string
+) => expect(selectionRects(axialView), message).toHaveCount(expected);
 
 // Hovers the handle and presses until the annotation selects, which proves the
 // widget manager resolved a pick there and left it as its standing selection.
-const hoverAndSelect = async (
-  axialView: ChainablePromiseElement,
+const hoverAndSelect = (
+  annotation: AnnotationUtils,
+  axialView: Locator,
   x: number,
   y: number
 ) =>
-  browser.waitUntil(
-    async () => {
-      await nudgeTo(x, y);
-      await pressAtPointer();
-      return (await getSelectionRectCount(axialView)) === 1;
-    },
-    {
-      timeout: 15000,
-      interval: 500,
-      timeoutMsg: 'Pressing on the annotation handle should select it',
-    }
-  );
+  expect
+    .poll(
+      async () => {
+        await annotation.nudgeTo(x, y);
+        await annotation.pressAtPointer();
+        return selectionRects(axialView).count();
+      },
+      {
+        // Each attempt presses, so attempts stay half a second apart.
+        intervals: [500],
+        message: 'Pressing on the annotation handle should select it',
+      }
+    )
+    .toBe(1);
 
-const setupSelectedRectangle = async (fileName?: string) => {
-  const context = await setupTest(fileName);
+const setupSelectedRectangle = async (
+  {
+    volview,
+    annotation,
+  }: { volview: VolViewPage; annotation: AnnotationUtils },
+  fileName?: string
+) => {
+  const context = await annotation.setupTest(fileName);
   const { axialView, centerX, centerY } = context;
-  await AppPage.selectTool('mdi-vector-square');
-  await clickAt(centerX - 80, centerY - 80);
-  await clickAt(centerX + 80, centerY + 80);
-  await waitForCircleCount(axialView, 2, 'Rectangle should have two handles');
-  await AppPage.selectTool('mdi-cursor-default');
+  await volview.selectTool('mdi-vector-square');
+  await annotation.clickAt(centerX - 80, centerY - 80);
+  await annotation.clickAt(centerX + 80, centerY + 80);
+  await annotation.waitForCircleCount(
+    axialView,
+    2,
+    'Rectangle should have two handles'
+  );
+  await volview.selectTool('mdi-cursor-default');
 
-  const shape = axialView.$('svg rect:not([stroke="lightgray"])');
+  const shape = axialView.locator('svg rect:not([stroke="lightgray"])').first();
   const bounds = () =>
     Promise.all(
       ['x', 'y', 'width', 'height'].map((name) => shape.getAttribute(name))
     );
   const before = await bounds();
-  await hoverAndSelect(axialView, centerX - 80, centerY - 80);
+  await hoverAndSelect(annotation, axialView, centerX - 80, centerY - 80);
   return { ...context, shape, bounds, before };
 };
 
-describe('Selection picks at the press position', () => {
-  afterEach(async () => {
+test.describe('Selection picks at the press position', () => {
+  test.afterEach(async ({ volview }) => {
     // Selection can still update after another press handler throws.
-    expect(await AppPage.getNotificationsCount()).toBe(0);
+    expect(await volview.getNotificationsCount()).toBe(0);
   });
 
-  it('deselects after changing slices without moving the pointer', async () => {
+  test('deselects after changing slices without moving the pointer', async ({
+    page,
+    volview,
+    utils,
+    annotation,
+  }) => {
     const { axialView, shape, bounds, before } = await setupSelectedRectangle(
-      writeMetaImage('selection-at-press.mha')
+      { volview, annotation },
+      utils.writeMetaImage('selection-at-press.mha')
     );
 
-    await AppPage.advanceSliceAndWait();
-    await expect(shape.parentElement()).toHaveStyle({ display: 'none' });
-    await pressAtPointer();
-    await browser.keys('ArrowUp');
-    await expect(shape.parentElement()).not.toHaveStyle({ display: 'none' });
+    await volview.advanceSliceAndWait();
+    await expect(shape.locator('..')).toHaveCSS('display', 'none');
+    await annotation.pressAtPointer();
+    await page.keyboard.press('ArrowUp');
+    await expect(shape.locator('..')).not.toHaveCSS('display', 'none');
 
     await waitForSelectionRectCount(
       axialView,
@@ -89,12 +96,15 @@ describe('Selection picks at the press position', () => {
     expect(await bounds()).toEqual(before);
   });
 
-  it('deselects when the move onto empty space is tracked', async () => {
+  test('deselects when the move onto empty space is tracked', async ({
+    volview,
+    annotation,
+  }) => {
     const { axialView, centerX, centerY, bounds, before } =
-      await setupSelectedRectangle();
+      await setupSelectedRectangle({ volview, annotation });
 
-    await nudgeTo(centerX + 140, centerY - 140);
-    await pressAtPointer();
+    await annotation.nudgeTo(centerX + 140, centerY - 140);
+    await annotation.pressAtPointer();
 
     await waitForSelectionRectCount(
       axialView,
@@ -108,54 +118,53 @@ describe('Selection picks at the press position', () => {
     ['rectangle', 'mdi-vector-square'],
     ['ruler', 'mdi-ruler'],
   ]) {
-    it(`adjusts a ${name} handle after switching back from paint`, async () => {
-      const { axialView, centerX, centerY } = await setupTest();
+    test(`adjusts a ${name} handle after switching back from paint`, async ({
+      page,
+      volview,
+      annotation,
+    }) => {
+      const { axialView, centerX, centerY } = await annotation.setupTest();
       const handleX = centerX - 80;
       const handleY = centerY - 80;
-      await AppPage.selectTool(icon);
-      await clickAt(handleX, handleY);
-      await clickAt(centerX + 80, centerY + 80);
-      await waitForCircleCount(
+      await volview.selectTool(icon);
+      await annotation.clickAt(handleX, handleY);
+      await annotation.clickAt(centerX + 80, centerY + 80);
+      await annotation.waitForCircleCount(
         axialView,
         2,
         'Placed annotation should have two handles'
       );
-      await AppPage.activatePaint();
-      await AppPage.selectTool(icon);
-      const firstHandle = axialView.$('svg circle');
+      await volview.activatePaint();
+      await volview.selectTool(icon);
+      const firstHandle = axialView.locator('svg circle').first();
       const start = await Promise.all(
         ['cx', 'cy'].map((axis) => firstHandle.getAttribute(axis))
       );
-      await nudgeTo(handleX, handleY);
-      await browser
-        .action('pointer')
-        .move({ x: Math.round(handleX), y: Math.round(handleY) })
-        .down()
-        .move({
-          x: Math.round(handleX + 35),
-          y: Math.round(handleY + 20),
-          duration: 400,
-        })
-        .up()
-        .perform();
-      await waitForCircleCount(
+      await annotation.nudgeTo(handleX, handleY);
+      await page.mouse.move(Math.round(handleX), Math.round(handleY));
+      await page.mouse.down();
+      await page.mouse.move(Math.round(handleX + 35), Math.round(handleY + 20));
+      await page.mouse.up();
+      await annotation.waitForCircleCount(
         axialView,
         2,
         'Dragging should keep the same annotation'
       );
       const expected = [Number(start[0]) + 35, Number(start[1]) + 20];
-      await browser.waitUntil(
-        async () => {
-          const coordinates = await Promise.all(
-            ['cx', 'cy'].map((axis) => firstHandle.getAttribute(axis))
-          );
-          return coordinates.every(
-            (coordinate, index) =>
-              Math.abs(Number(coordinate) - expected[index]) < 0.5
-          );
-        },
-        { timeoutMsg: `Expected the dragged handle at ${expected.join(', ')}` }
-      );
+      await expect
+        .poll(
+          async () => {
+            const coordinates = await Promise.all(
+              ['cx', 'cy'].map((axis) => firstHandle.getAttribute(axis))
+            );
+            return coordinates.every(
+              (coordinate, index) =>
+                Math.abs(Number(coordinate) - expected[index]) < 0.5
+            );
+          },
+          { message: `Expected the dragged handle at ${expected.join(', ')}` }
+        )
+        .toBe(true);
     });
   }
 });

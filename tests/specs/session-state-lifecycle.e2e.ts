@@ -1,145 +1,112 @@
-import * as path from 'path';
-import * as fs from 'fs';
+import * as fs from 'node:fs';
 import JSZip from 'jszip';
+import type { Page } from '@playwright/test';
+import { test, expect } from '../fixtures';
 import { MINIMAL_501_SESSION } from '../datasets';
+import type { VolViewPage } from '../pageobjects/volview.page';
+import type { Scratch } from '../scratch';
 import { PROSTATE_610_LABELMAP_MANIFEST } from './configTestUtils';
-import {
-  openVolViewPage,
-  SESSION_SAVE_TIMEOUT,
-  waitForFileExists,
-  writeManifestToFile,
-} from './utils';
-import { volViewPage } from '../pageobjects/volview.page';
-import { TEMP_DIR } from '../../wdio.shared.conf';
-import {
-  openAnnotationSegments,
-  openSegmentShapes,
-  segmentColor,
-  segmentNames,
-  segmentRow,
-  waitForNamedSegments,
-  waitForSegmentContent,
-} from './segmentationTestUtils';
+import type { Utils } from './utils';
+import type { SegmentationUtils } from './segmentationTestUtils';
 
 // The 5.0.1 fixture's rectangle carries this name.
 const RECTANGLE_SEGMENT_NAME = 'Label 1';
 
-const waitForElementCount = async (selector: string, minCount = 1) => {
-  await browser.waitUntil(async () => {
-    const count = await browser.execute(
-      (sel) => document.querySelectorAll(sel).length,
-      selector
-    );
-    return count >= minCount;
-  });
-};
+const waitForElementCount = (page: Page, selector: string, minCount = 1) =>
+  expect
+    .poll(() => page.locator(selector).count())
+    .toBeGreaterThanOrEqual(minCount);
 
-const saveSession = async () => {
-  const sessionFileName = await volViewPage.saveSession();
-  const downloadedPath = path.join(TEMP_DIR, sessionFileName);
-  await waitForFileExists(downloadedPath, SESSION_SAVE_TIMEOUT);
-  return sessionFileName;
-};
-
-const parseSession = async (sessionFileName: string) => {
-  const session = fs.readFileSync(path.join(TEMP_DIR, sessionFileName));
-  const zip = await JSZip.loadAsync(session);
+const saveAndParseManifest = async (volview: VolViewPage, scratch: Scratch) => {
+  const session = await volview.saveSession();
+  const zip = await JSZip.loadAsync(fs.readFileSync(scratch.path(session)));
   const manifestFile = await zip.files['manifest.json'].async('string');
-  return {
-    zip,
-    manifest: JSON.parse(manifestFile),
-  };
-};
-
-const saveAndParseManifest = async () => {
-  const session = await saveSession();
-  let zip: JSZip | undefined;
-  let manifest: Record<string, unknown> = {};
-  await browser.waitUntil(async () => {
-    try {
-      const parsed = await parseSession(session);
-      zip = parsed.zip;
-      manifest = parsed.manifest;
-      return manifest.version !== undefined;
-    } catch {
-      return false;
-    }
-  });
+  const manifest: Record<string, unknown> = JSON.parse(manifestFile);
   return { session, zip, manifest };
 };
 
-const loadSession = async () => {
-  const urlParams = `?urls=[tmp/${MINIMAL_501_SESSION.name}]`;
-  await volViewPage.open(urlParams);
-  await volViewPage.waitForViews();
+const loadSession = async (volview: VolViewPage) => {
+  await volview.open(`?urls=[tmp/${MINIMAL_501_SESSION.name}]`);
+  await volview.waitForViews();
 };
 
 const openProstateLabelmap = async (
+  { utils, segmentation }: { utils: Utils; segmentation: SegmentationUtils },
   fileName: string,
   segmentName = 'Right hip'
 ) => {
-  await openVolViewPage(fileName);
-  await openAnnotationSegments();
-  await waitForNamedSegments();
-  await waitForSegmentContent(segmentName);
+  await utils.openVolViewPage(fileName);
+  await segmentation.openAnnotationSegments();
+  await segmentation.waitForNamedSegments();
+  await segmentation.waitForSegmentContent(segmentName);
 };
 
-describe('Session state lifecycle', () => {
-  it('migrates 5.0.1 session with rectangle, polygons, and labelmap', async () => {
-    await loadSession();
+test.describe('Session state lifecycle', () => {
+  test('migrates 5.0.1 session with rectangle, polygons, and labelmap', async ({
+    page,
+    volview,
+    segmentation,
+  }) => {
+    await loadSession(volview);
 
-    const notifications = await volViewPage.getNotificationsCount();
+    const notifications = await volview.getNotificationsCount();
     expect(notifications).toEqual(0);
 
-    await openSegmentShapes();
+    await segmentation.openSegmentShapes();
 
     await waitForElementCount(
+      page,
       '[data-testid="segment-shape-row"] i.mdi-vector-square'
     );
     await waitForElementCount(
+      page,
       '[data-testid="segment-shape-row"] i.mdi-pentagon-outline'
     );
 
-    await openAnnotationSegments();
-    await waitForNamedSegments();
+    await segmentation.openAnnotationSegments();
+    await segmentation.waitForNamedSegments();
   });
 
-  it('edited type strokeWidth persists through save/load cycle', async () => {
-    await loadSession();
+  test('edited type strokeWidth persists through save/load cycle', async ({
+    page,
+    scratch,
+    volview,
+    segmentation,
+  }) => {
+    await loadSession(volview);
 
     const editedStrokeWidth = 5;
 
     // Rectangle draws with the entry selected in the Segments list, which is
     // where the session's rectangle segment shows up.
-    await volViewPage.activateRectangle();
-    await openAnnotationSegments();
-    await waitForNamedSegments();
+    await volview.activateRectangle();
+    await segmentation.openAnnotationSegments();
+    await segmentation.waitForNamedSegments();
 
     // Pick the rectangle's segment from the current image's list.
-    const row = await segmentRow(RECTANGLE_SEGMENT_NAME);
-    await row.waitForDisplayed();
-    const editButton = await row.$('button[data-testid="edit-segment-button"]');
-    await editButton.click();
+    const row = await segmentation.segmentRow(RECTANGLE_SEGMENT_NAME);
+    await expect(row).toBeVisible();
+    await row.locator('button[data-testid="edit-segment-button"]').click();
 
-    const slider = await volViewPage.segmentStrokeWidthSlider;
-    await slider.waitForClickable();
+    const slider = volview.segmentStrokeWidthSlider;
     await slider.click();
-    await browser.keys('End');
+    await page.keyboard.press('End');
     await expect(slider).toHaveAttribute(
       'aria-valuenow',
       editedStrokeWidth.toString()
     );
 
-    const done = await volViewPage.editLabelModalDoneButton;
-    await done.click();
+    await volview.editLabelModalDoneButton.click();
 
-    const { session } = await saveAndParseManifest();
+    const { session } = await saveAndParseManifest(volview, scratch);
 
-    const sessionZip = `?urls=[tmp/${session}]`;
-    await volViewPage.open(sessionZip);
-    await volViewPage.waitForViews();
+    await volview.open(`?urls=[tmp/${session}]`);
+    await volview.waitForViews();
 
-    const { manifest: reloadedManifest } = await saveAndParseManifest();
+    const { manifest: reloadedManifest } = await saveAndParseManifest(
+      volview,
+      scratch
+    );
     // Stroke width belongs to the type the rectangle names, not to the shape.
     const tools = reloadedManifest.tools as {
       rectangles: { tools: Array<{ segmentId: string }> };
@@ -153,13 +120,18 @@ describe('Session state lifecycle', () => {
     expect(carried?.strokeWidth).toEqual(editedStrokeWidth);
   });
 
-  it('names each saved mask entry after its image and segment, sanitized', async () => {
+  test('names each saved mask entry after its image and segment, sanitized', async ({
+    scratch,
+    volview,
+    utils,
+    segmentation,
+  }) => {
     const storedName = 'Liver: left/right*?';
     const sanitizedFilePath = 'segmentations/t2_tse_tra - Liver left right.vti';
     const source = PROSTATE_610_LABELMAP_MANIFEST.labelMaps[0];
     const segment = source.metadata.segments.byValue['78'];
     const fileName = `hostile-segment-name-${Date.now()}.volview.json`;
-    await writeManifestToFile(
+    await utils.writeManifestToFile(
       {
         ...PROSTATE_610_LABELMAP_MANIFEST,
         labelMaps: [
@@ -177,12 +149,9 @@ describe('Session state lifecycle', () => {
       },
       fileName
     );
-    await openProstateLabelmap(fileName, storedName);
+    await openProstateLabelmap({ utils, segmentation }, fileName, storedName);
 
-    const { manifest, zip } = await saveAndParseManifest();
-    if (!zip) {
-      throw new Error('Expected saved session zip to be available');
-    }
+    const { manifest, zip } = await saveAndParseManifest(volview, scratch);
     const imageSegments = manifest.imageSegments as Array<{
       segments: Array<{ name: string; labelmap?: { path: string } }>;
     }>;
@@ -194,29 +163,36 @@ describe('Session state lifecycle', () => {
     expect(Object.keys(zip.files)).toContain(sanitizedFilePath);
   });
 
-  it('re-saves a migrated legacy labelmap with its segments intact', async () => {
+  test('re-saves a migrated legacy labelmap with its segments intact', async ({
+    scratch,
+    volview,
+    utils,
+    segmentation,
+  }) => {
     const fileName = `legacy-labelmap-${Date.now()}.volview.json`;
-    await writeManifestToFile(PROSTATE_610_LABELMAP_MANIFEST, fileName);
-    await openProstateLabelmap(fileName);
+    await utils.writeManifestToFile(PROSTATE_610_LABELMAP_MANIFEST, fileName);
+    await openProstateLabelmap({ utils, segmentation }, fileName);
 
     // The 6.1.0 labelMaps entry names this segment and colors it red. The
     // labelmap's other values restore under default names.
-    const namesBefore = await segmentNames();
+    const namesBefore = await segmentation.segmentNames();
     expect(namesBefore[0]).toEqual('Right hip');
     expect(namesBefore.length).toBeGreaterThan(1);
-    const segmentColorBefore = await segmentColor('Right hip');
+    const segmentColorBefore = await segmentation.segmentColor('Right hip');
 
-    const { session, manifest } = await saveAndParseManifest();
+    const { session, manifest } = await saveAndParseManifest(volview, scratch);
     expect(manifest.version).toEqual('8.0.0');
 
-    await volViewPage.open(`?urls=[tmp/${session}]`);
-    await volViewPage.waitForViews();
-    expect(await volViewPage.getNotificationsCount()).toEqual(0);
+    await volview.open(`?urls=[tmp/${session}]`);
+    await volview.waitForViews();
+    expect(await volview.getNotificationsCount()).toEqual(0);
 
-    await openAnnotationSegments();
-    await waitForNamedSegments();
-    await waitForSegmentContent('Right hip');
-    expect(await segmentNames()).toEqual(namesBefore);
-    expect(await segmentColor('Right hip')).toEqual(segmentColorBefore);
+    await segmentation.openAnnotationSegments();
+    await segmentation.waitForNamedSegments();
+    await segmentation.waitForSegmentContent('Right hip');
+    expect(await segmentation.segmentNames()).toEqual(namesBefore);
+    expect(await segmentation.segmentColor('Right hip')).toEqual(
+      segmentColorBefore
+    );
   });
 });

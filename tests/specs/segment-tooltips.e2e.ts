@@ -1,108 +1,91 @@
-import { volViewPage } from '../pageobjects/volview.page';
+import { test, expect } from '../fixtures';
 import { ONE_CT_SLICE_DICOM } from '../datasets';
-import { moveTo } from './annotationTestUtils';
-import {
-  openAnnotationSegments,
-  addSegment,
-  renameSegment,
-  segmentRow,
-  tooltipOf,
-  waitForSegmentContent,
-  createSegmentRow,
-  copySegmentsRow,
-} from './segmentationTestUtils';
-import { openUrls } from './utils';
 
-describe('Segment tooltips', () => {
-  it('explains why creation is disabled and aligns the enabled create button', async () => {
-    await volViewPage.open();
-    await openAnnotationSegments();
-    const disabledCreate = createSegmentRow();
+test.describe('Segment tooltips', () => {
+  test('explains why creation is disabled and aligns the enabled create button', async ({
+    volview,
+    utils,
+    segmentation,
+  }) => {
+    await volview.open();
+    await segmentation.openAnnotationSegments();
+    const disabledCreate = segmentation.createSegmentRow();
     await expect(disabledCreate).toBeDisabled();
-    await disabledCreate.moveTo();
-    const reason = await tooltipOf(disabledCreate.$('..'));
-    await expect(reason).toBeDisplayed();
+    await utils.moveToElement(disabledCreate);
+    const reason = await segmentation.tooltipOf(disabledCreate.locator('..'));
+    await expect(reason).toBeVisible();
     await expect(reason).toHaveText('Select an image to edit segments');
 
-    await openUrls([ONE_CT_SLICE_DICOM]);
-    await openAnnotationSegments();
-    await addSegment();
-    const create = createSegmentRow();
-    const row = await segmentRow('Segment 1');
-    const handle = row.$('.reorder-handle');
-    const remove = row.$('[data-testid="delete-segment-button"]');
-    const edges = await browser.execute(
-      (reorder, button, rowEnd, copy) => [
-        reorder.getBoundingClientRect().left -
-          button.getBoundingClientRect().left,
-        rowEnd.getBoundingClientRect().right -
-          copy.getBoundingClientRect().right,
-      ],
-      await handle,
-      await create,
-      await remove,
-      await copySegmentsRow()
-    );
+    await utils.openUrls([ONE_CT_SLICE_DICOM]);
+    await segmentation.openAnnotationSegments();
+    await segmentation.addSegment();
+    const create = segmentation.createSegmentRow();
+    const row = await segmentation.segmentRow('Segment 1');
+    const left = (element: Element) => element.getBoundingClientRect().left;
+    const right = (element: Element) => element.getBoundingClientRect().right;
+    const remove = row.locator('[data-testid="delete-segment-button"]');
+    const edges = [
+      (await row.locator('.reorder-handle').evaluate(left)) -
+        (await create.evaluate(left)),
+      (await remove.evaluate(right)) -
+        (await segmentation.copySegmentsRow().evaluate(right)),
+    ];
     expect(Math.abs(edges[0])).toBeLessThan(1);
     expect(Math.abs(edges[1])).toBeLessThan(1);
   });
 
-  it('shows row descriptions on hover and explains locked controls on keyboard focus', async () => {
-    await openUrls([ONE_CT_SLICE_DICOM]);
-    await volViewPage.activatePaint();
-    const views = await volViewPage.getViews2D();
-    await volViewPage.paintStrokeOnView(views[0]);
-    await openAnnotationSegments();
-    await waitForSegmentContent('Segment 1');
+  test('shows row descriptions on hover and explains locked controls on keyboard focus', async ({
+    page,
+    volview,
+    utils,
+    annotation,
+    segmentation,
+  }) => {
+    await utils.openUrls([ONE_CT_SLICE_DICOM]);
+    await volview.activatePaint();
+    await volview.paintStrokeOnView(volview.views2D.first());
+    await segmentation.openAnnotationSegments();
+    await segmentation.waitForSegmentContent('Segment 1');
 
     const name = 'A segment name that is longer than the available row width';
-    await renameSegment('Segment 1', name);
-    const row = await segmentRow(name);
-    const title = await row.$('.v-list-item-title');
-    await title.moveTo();
-    const titleTooltip = await tooltipOf(title);
-    await expect(titleTooltip).toBeDisplayed();
+    await segmentation.renameSegment('Segment 1', name);
+    const row = await segmentation.segmentRow(name);
+    const title = row.locator('.v-list-item-title');
+    await utils.moveToElement(title);
+    const titleTooltip = await segmentation.tooltipOf(title);
+    await expect(titleTooltip).toBeVisible();
     await expect(titleTooltip).toHaveText(name);
-    await moveTo(10, 10);
-    await expect(titleTooltip).not.toBeDisplayed();
+    await annotation.moveTo(10, 10);
+    await expect(titleTooltip).toBeHidden();
 
-    const lock = await row.$('button[aria-label^="Lock "]');
-    await lock.moveTo();
-    const lockTooltip = await tooltipOf(lock);
-    await expect(lockTooltip).toBeDisplayed();
+    const lock = row.locator('button[aria-label^="Lock "]');
+    await utils.moveToElement(lock);
+    const lockTooltip = await segmentation.tooltipOf(lock);
+    await expect(lockTooltip).toBeVisible();
     await expect(lockTooltip).toHaveText(
       'Lock. Painting other segments goes around it, or overlaps it with Allow Overlap on.'
     );
     await lock.click();
-    await moveTo(10, 10);
+    await annotation.moveTo(10, 10);
 
-    await browser.keys(['Shift', 'Tab']);
-    const edit = await row.$('[data-testid="edit-segment-button"]');
-    const editActivator = await edit.$('..');
+    const isFocused = (element: Element) => document.activeElement === element;
+    await page.keyboard.press('Shift+Tab');
+    const edit = row.locator('[data-testid="edit-segment-button"]');
+    const editActivator = edit.locator('..');
     await expect(edit).toBeDisabled();
-    expect(
-      await browser.execute(
-        (element) => document.activeElement === element,
-        await editActivator
-      )
-    ).toBe(true);
-    const editTooltip = await tooltipOf(editActivator);
-    await expect(editTooltip).toBeDisplayed();
+    expect(await editActivator.evaluate(isFocused)).toBe(true);
+    const editTooltip = await segmentation.tooltipOf(editActivator);
+    await expect(editTooltip).toBeVisible();
     await expect(editTooltip).toHaveText('Unlock this segment to edit it');
 
-    await browser.keys(['Shift', 'Tab']);
-    await browser.keys(['Shift', 'Tab']);
-    const color = await row.$('[data-testid="segment-color-button"]');
-    const colorActivator = await color.$('..');
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Shift+Tab');
+    const color = row.locator('[data-testid="segment-color-button"]');
+    const colorActivator = color.locator('..');
     await expect(color).toBeDisabled();
-    expect(
-      await browser.execute(
-        (element) => document.activeElement === element,
-        await colorActivator
-      )
-    ).toBe(true);
-    const colorTooltip = await tooltipOf(colorActivator);
-    await expect(colorTooltip).toBeDisplayed();
+    expect(await colorActivator.evaluate(isFocused)).toBe(true);
+    const colorTooltip = await segmentation.tooltipOf(colorActivator);
+    await expect(colorTooltip).toBeVisible();
     await expect(colorTooltip).toHaveText(
       'Unlock this segment to change its color'
     );
