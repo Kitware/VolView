@@ -214,6 +214,31 @@ test.describe('Splitting individual views', () => {
       .toBe(true);
   });
 
+  test('gives either closed half of a split back to the other half', async ({
+    page,
+    volview,
+    utils,
+    layout,
+  }) => {
+    const { openSplitFixture } = createSplitHelpers({
+      page,
+      volview,
+      utils,
+      layout,
+    });
+    await openSplitFixture();
+    const before = [await layout.paneBounds(0), await layout.paneBounds(1)];
+    for (const closed of [1, 2]) {
+      await layout.viewAction(1, 'Split side by side');
+      await layout.waitForPaneCount(3);
+      await layout.viewAction(closed, 'Close view');
+      await layout.waitForPaneCount(2);
+      expect([await layout.paneBounds(0), await layout.paneBounds(1)]).toEqual(
+        before
+      );
+    }
+  });
+
   test('keeps Close view visible and disabled when only one view remains', async ({
     page,
     volview,

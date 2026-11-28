@@ -141,22 +141,33 @@ function collapsedGroup(
   return only.items.map((item, index) => [item, share * inner[index]]);
 }
 
-// An emptied item's share goes to its previous sibling, or the next one when
-// it was first, so closing a split view restores the pane it came from.
+const sameShare = (a: number, b: number) =>
+  Math.abs(a - b) < EQUAL_SHARE_TOLERANCE;
+
+// An emptied item's share goes to an adjacent item of equal share, usually the
+// other half of its split or dock. When both neighbors match, or neither does,
+// it goes to the previous sibling, or the next when first.
 function giveToNeighbor(groups: Shared[][], shares: readonly number[]) {
-  return groups.map((entries, index) => {
-    const freed = (neighbor: number) =>
-      groups[neighbor]?.length === 0 ? shares[neighbor] : 0;
-    const fromNext = freed(index + 1);
-    const fromPrevious = index === 1 ? freed(0) : 0;
-    return entries.map(([item, share], position): Shared => {
-      const last = position === entries.length - 1;
-      return [
-        item,
-        share + (last ? fromNext : 0) + (position === 0 ? fromPrevious : 0),
-      ];
-    });
+  const gifts = groups.flatMap((entries, index) => {
+    if (entries.length > 0) return [];
+    const previous = groups[index - 1]?.at(-1);
+    const next = groups[index + 1]?.[0];
+    const isTwin = (entry?: Shared) =>
+      !!entry && sameShare(entry[1], shares[index]);
+    const receiver =
+      !previous || (isTwin(next) && !isTwin(previous)) ? next : previous;
+    return receiver ? [{ receiver, share: shares[index] }] : [];
   });
+  return groups.map((entries) =>
+    entries.map(
+      (entry): Shared => [
+        entry[0],
+        gifts
+          .filter(({ receiver }) => receiver === entry)
+          .reduce((total, { share }) => total + share, entry[1]),
+      ]
+    )
+  );
 }
 
 export function removeLayoutView(layout: Layout, viewId: string): Layout {

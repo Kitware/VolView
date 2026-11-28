@@ -379,6 +379,19 @@ describe('layout sizes', () => {
     expect(widths(removeLayoutView(layout, 'a'))).toEqual([50, 50]);
   });
 
+  it('gives a closed half of a split or dock to the other half', () => {
+    const layout = root(row(v('a'), v('b')));
+    const split = splitLayoutView(layout, 'b', 'n', 'row');
+    expect(removeLayoutView(split, 'b')).toEqual(
+      replaceLayoutView(layout, 'b', 'n')
+    );
+    const fourUp = root(column(row(v('a'), v('b')), row(v('c'), v('d'))));
+    const docked = moveLayoutView(fourUp, 'a', 'd', 'left');
+    expect(removeLayoutView(docked, 'a')).toEqual(
+      root(column(v('b'), row(v('c'), v('d'))))
+    );
+  });
+
   it('restores the original sizes when a split view is closed', () => {
     const layout = root(
       sized(column(sized(row(v('a'), v('b')), [0.3, 0.7]), v('c')), [0.6, 0.4])
