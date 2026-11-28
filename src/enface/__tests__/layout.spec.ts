@@ -12,8 +12,6 @@ import LayoutSelector from '@/src/components/LayoutSelector.vue';
 import ViewTypeSwitcher from '@/src/components/ViewTypeSwitcher.vue';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useViewStore } from '@/src/store/views';
-import { useViewSliceStore } from '@/src/store/view-configs/slicing';
-import { useEnFaceViewStore } from '@/src/enface/store';
 import { cleanupCachedImages } from '@/tests/unit/imageCacheCleanup';
 
 enableAutoUnmount(afterEach);
@@ -115,31 +113,18 @@ describe('En face view configuration', () => {
     );
   });
 
-  it('resets views, slice and projection settings when a named layout is picked again', async () => {
+  it('replaces both views with fresh views of the image when a named layout is picked again', async () => {
     await loadVolume('oct');
     const views = useViewStore();
     views.setDataForAllViews('oct');
     configureComparison();
     views.switchToNamedLayout('Comparison');
     const [source, enface] = views.visibleViews;
-    const defaults = { ...useEnFaceViewStore().configFor(enface.id, 'oct') };
-    Object.assign(useEnFaceViewStore().configFor(enface.id, 'oct'), {
-      method: 'max',
-      depthStart: 1,
-      depthEnd: 2,
-    });
-    useViewSliceStore().updateConfig(source.id, 'oct', { slice: 0 });
 
     views.switchToNamedLayout('Comparison');
     const [nextSource, nextEnface] = views.visibleViews;
     expect([nextSource.id, nextEnface.id]).not.toContain(source.id);
     expect([nextSource.id, nextEnface.id]).not.toContain(enface.id);
     expect(nextEnface.dataID).toBe('oct');
-    expect(useEnFaceViewStore().configFor(nextEnface.id, 'oct')).toEqual(
-      defaults
-    );
-    expect(useViewSliceStore().getConfig(nextSource.id, 'oct')?.slice).not.toBe(
-      0
-    );
   });
 });

@@ -6,6 +6,7 @@ import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
 import vtkRenderWindow from '@kitware/vtk.js/Rendering/Core/RenderWindow';
 import vtkOpenGLRenderWindow from '@kitware/vtk.js/Rendering/OpenGL/RenderWindow';
 import ObliqueSliceViewer from '@/src/components/ObliqueSliceViewer.vue';
+import VtkBaseObliqueSliceRepresentation from '@/src/components/vtk/VtkBaseObliqueSliceRepresentation.vue';
 import { useImageStore } from '@/src/store/datasets-images';
 import { useViewStore } from '@/src/store/views';
 import useResliceCursorStore from '@/src/store/reslice-cursor';
@@ -22,7 +23,7 @@ describe('split oblique cursor position', () => {
   const mountSlice = (viewID: string) => {
     // Rendering is unnecessary here; retain the real camera collaborator.
     const VtkSlice = defineComponent({
-      setup(_, { expose }) {
+      setup(_, { expose, slots }) {
         const renderer = vtkRenderer.newInstance();
         const renderWindow = vtkRenderWindow.newInstance();
         const renderWindowView = vtkOpenGLRenderWindow.newInstance();
@@ -39,7 +40,7 @@ describe('split oblique cursor position', () => {
           requestRender: () => {},
           resetCamera: () => {},
         });
-        return () => h('div');
+        return () => h('div', slots.default?.());
       },
     });
     const wrapper = shallowMount(ObliqueSliceViewer, {
@@ -52,6 +53,13 @@ describe('split oblique cursor position', () => {
       global: { stubs: { VtkSliceView: VtkSlice } },
     });
     wrappers.push(wrapper);
+    // The plane the viewer asks its slice representation to draw.
+    return () =>
+      [
+        ...wrapper
+          .findComponent(VtkBaseObliqueSliceRepresentation)
+          .props('planeOrigin'),
+      ] as number[];
   };
 
   it('keeps the cursor away from image center as split slice viewers mount', async () => {
@@ -61,17 +69,15 @@ describe('split oblique cursor position', () => {
     const source = views.layoutViews[0].id;
     views.setDataForView(source, 'image');
     views.setActiveView(source);
-    const cursor = useResliceCursorStore();
     mountSlice(source + '-axial');
     await nextTick();
-    cursor.resliceCursor.setCenter([1, 2, 3]);
+    useResliceCursorStore().resliceCursor.setCenter([1, 2, 3]);
     const target = views.splitView(source, 'row')!;
-    mountSlice(target + '-axial');
-    mountSlice(target + '-coronal');
-    mountSlice(target + '-sagittal');
+    const split = ['-axial', '-coronal', '-sagittal'].map((suffix) =>
+      mountSlice(target + suffix)
+    );
     await nextTick();
-    expect(cursor.resliceCursorState.getCenter()).toEqual([1, 2, 3]);
-    expect(cursor.resliceCursorState.getImage()).toBe(image);
+    split.forEach((origin) => expect(origin()).toEqual([1, 2, 3]));
   });
 
   it('still recenters when the selected dataset changes', async () => {
@@ -84,12 +90,10 @@ describe('split oblique cursor position', () => {
     const source = views.layoutViews[0].id;
     views.setDataForView(source, 'first');
     views.setActiveView(source);
-    const cursor = useResliceCursorStore();
-    mountSlice(source + '-axial');
-    cursor.resliceCursor.setCenter([1, 2, 3]);
+    const origin = mountSlice(source + '-axial');
+    useResliceCursorStore().resliceCursor.setCenter([1, 2, 3]);
     views.setDataForView(source, 'second');
     await nextTick();
-    expect(cursor.resliceCursorState.getImage()).toBe(second);
-    expect(cursor.resliceCursorState.getCenter()).toEqual(second.getCenter());
+    expect(origin()).toEqual(second.getCenter());
   });
 });
