@@ -32,6 +32,9 @@ bundle-analysis.html
 reports
 *.log
 .tmp/
+test-results/
+playwright-report/
+blob-report/
 
 .github/copilot
 CLAUDE.md
