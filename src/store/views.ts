@@ -401,18 +401,21 @@ export const useViewStore = defineStore('view', () => {
     // No old view is current while the incoming layout replaces its contents.
     setActiveView(undefined);
     const saved = manifest.viewByID ?? {};
-    if (isRestorableLayout(manifest.layout, saved)) {
+    const incoming = manifest.layout;
+    const restored = isRestorableLayout(incoming, saved);
+    if (restored) {
       viewIDs.value.forEach(deleteView);
-      layoutViewIds(manifest.layout).forEach((id) => {
+      layoutViewIds(incoming).forEach((id) => {
         viewByID[id] = { ...saved[id], dataID: null } as unknown as ViewInfo;
       });
-      layout.value = manifest.layout;
+      layout.value = incoming;
     }
     // A saved active view the layout no longer shows cannot stay maximized.
     const hidden = !!manifest.activeView && !isInLayout(manifest.activeView);
     isActiveViewMaximized.value = !hidden && !!manifest.isActiveViewMaximized;
     // Reused views acquire their saved selection after their data is rebound.
     if (manifest.viewByID && !hidden) setActiveView(manifest.activeView);
+    return restored;
   }
 
   function bindViewsToData(

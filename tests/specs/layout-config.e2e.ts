@@ -140,6 +140,73 @@ test.describe('VolView Layout Configuration', () => {
     expect(sliceInFirstViewAfterDualSwitch).toBe(initialSlice);
   });
 
+  test('keeps the layout and views of a session opened with a config', async ({
+    volview,
+    utils,
+    layout,
+  }) => {
+    const image = utils.writeMetaImage('config-session-layout.mha');
+    const session = 'config-session-layout.volview.json';
+    await utils.writeManifestToFile(
+      {
+        version: '9.0.0',
+        dataSources: [
+          { id: 0, type: 'uri', uri: `/tmp/${image}`, name: image },
+        ],
+        datasets: [{ id: '0', dataSourceId: 0 }],
+        layout: {
+          direction: 'row',
+          items: [
+            { type: 'view', viewId: 'saved' },
+            { type: 'view', viewId: 'other' },
+          ],
+        },
+        activeView: 'saved',
+        viewByID: {
+          saved: {
+            id: 'saved',
+            type: '2D',
+            name: 'Axial',
+            dataID: '0',
+            options: { orientation: 'Axial' },
+            config: {
+              '0': { slice: { slice: 3, min: 0, max: 15, syncState: false } },
+            },
+          },
+          other: {
+            id: 'other',
+            type: '2D',
+            name: 'Coronal',
+            dataID: '0',
+            options: { orientation: 'Coronal' },
+          },
+        },
+      },
+      session
+    );
+    const config = 'config-session-layout-config.json';
+    await utils.writeManifestToFile(
+      {
+        layouts: {
+          Reading: {
+            direction: 'row',
+            items: [{ type: '2D', orientation: 'Axial', name: 'Transverse' }],
+          },
+        },
+      },
+      config
+    );
+
+    await volview.open(`?urls=[tmp/${session},tmp/${config}]`);
+    await volview.waitForViews();
+    await expect
+      .poll(volview.getFirst2DSlice, {
+        message: 'Expected the saved slice, 4 of 16',
+      })
+      .toBe(4);
+    await expect(layout.typeLabels).toHaveText(['Axial', 'Coronal']);
+  });
+
   test('should disable configured view types', async ({
     page,
     volview,

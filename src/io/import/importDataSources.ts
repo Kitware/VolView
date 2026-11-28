@@ -182,7 +182,10 @@ async function processImportQueue(
       case 'config':
         configResults.push(result);
         try {
-          await applyPreStateConfig(result.config);
+          // A session restored in this import keeps its own layout.
+          await applyPreStateConfig(result.config, {
+            keepLayout: importContext.restoredLayout === true,
+          });
         } catch (err) {
           results.push(asErrorResult(ensureError(err), result.dataSource));
         }
