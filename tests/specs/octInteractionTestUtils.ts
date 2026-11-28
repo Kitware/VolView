@@ -19,10 +19,21 @@ import { createUtils } from './utils';
 import { syntheticMask } from '../fixtures/oct/volumes';
 import reference from '../fixtures/oct/reference.json' with { type: 'json' };
 import { createSyntheticOCT } from '../fixtures/oct/dicom';
-import { createImageCacheUtils } from './imageCacheUtils';
+import { createProbeUtils } from './probeTestUtils';
 import { createSegmentationUtils } from './segmentationTestUtils';
 
 export { reference };
+
+export const SYNTHETIC_OCT_GEOMETRY = {
+  origin: [0, 0, 0],
+  spacing: reference.spacing,
+};
+
+// Both sit on the synthetic B-scan in its axial and coronal views.
+export const SYNTHETIC_OCT_PROBE_POINTS = [
+  [0.2, 0.5],
+  [0.8, 0.5],
+] as const;
 
 export const SLICE_LINE = '[data-testid="enface-slice-lines"] line';
 
@@ -32,7 +43,7 @@ export const createOctInteractionUtils = (page: Page, scratch: Scratch) => {
   const volview = createVolViewPage(page, scratch);
   const utils = createUtils(page, scratch);
   const oct = createOctUtils(page, scratch);
-  const imageCache = createImageCacheUtils(page);
+  const probe = createProbeUtils(page);
   const segmentation = createSegmentationUtils(page, scratch);
   const canvas = page.locator(CANVAS).first();
 
@@ -113,9 +124,10 @@ export const createOctInteractionUtils = (page: Page, scratch: Scratch) => {
 
   const expectCalibratedEnFace = async () => {
     await oct.waitForEnFaceReady();
-    const spacing = await imageCache.waitForFirstCachedImageSpacing();
-    spacing.forEach((value, axis) =>
-      expect(value).toBeCloseTo(reference.spacing[axis], 6)
+    await probe.expectProbedPositions(
+      volview.views2D.first(),
+      SYNTHETIC_OCT_GEOMETRY,
+      SYNTHETIC_OCT_PROBE_POINTS
     );
     expect(await volview.getNotificationsCount()).toBe(0);
   };
@@ -143,9 +155,10 @@ export const createOctInteractionUtils = (page: Page, scratch: Scratch) => {
     );
     await volview.open('?urls=[tmp/' + STEM + '.json,tmp/' + image + ']');
     await volview.waitForViews();
-    const spacing = await imageCache.waitForFirstCachedImageSpacing();
-    spacing.forEach((value, axis) =>
-      expect(value).toBeCloseTo(reference.spacing[axis], 6)
+    await probe.expectProbedPositions(
+      volview.views2D.first(),
+      SYNTHETIC_OCT_GEOMETRY,
+      SYNTHETIC_OCT_PROBE_POINTS
     );
     if (comparison) await expect(canvas).toBeVisible();
     else await oct.selectEnFace();

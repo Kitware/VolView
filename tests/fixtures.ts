@@ -22,7 +22,7 @@ import { createLayerDisplayUtils } from './specs/layerDisplayTestUtils';
 import { createOverlaySegmentationUtils } from './specs/overlaySegmentationTestUtils';
 import { createVolumeUtils } from './specs/volumeTestUtils';
 import { createCineUtils } from './specs/cineTestUtils';
-import { createImageCacheUtils } from './specs/imageCacheUtils';
+import { createProbeUtils } from './specs/probeTestUtils';
 
 export { expect } from '@playwright/test';
 
@@ -126,7 +126,7 @@ export const test = base.extend<{
   overlaySegmentation: ReturnType<typeof createOverlaySegmentationUtils>;
   volume: ReturnType<typeof createVolumeUtils>;
   cine: ReturnType<typeof createCineUtils>;
-  imageCache: ReturnType<typeof createImageCacheUtils>;
+  probe: ReturnType<typeof createProbeUtils>;
 }>({
   context: async ({ context }, use) => {
     await context.addInitScript(stringifyConsoleErrors);
@@ -173,7 +173,7 @@ export const test = base.extend<{
     use(createOverlaySegmentationUtils(page, scratch)),
   volume: ({ page, scratch }, use) => use(createVolumeUtils(page, scratch)),
   cine: ({ page, scratch }, use) => use(createCineUtils(page, scratch)),
-  imageCache: ({ page }, use) => use(createImageCacheUtils(page)),
+  probe: ({ page }, use) => use(createProbeUtils(page)),
 });
 
 const openSharedPage = async (browser: Browser) => {

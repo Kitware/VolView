@@ -227,6 +227,18 @@ export default tseslint.config(
           message:
             'Raise the global budget in playwright.config.ts, or use test.slow().',
         },
+        {
+          selector:
+            "MemberExpression[property.name='__vue_app__'], MemberExpression[property.value='__vue_app__']",
+          message:
+            'Assert on what the page shows rather than reading the Vue app.',
+        },
+        {
+          selector:
+            "MemberExpression[property.name='$pinia'], MemberExpression[property.value='$pinia']",
+          message:
+            'Assert on what the page shows rather than reading a Pinia store.',
+        },
       ],
     },
   },
