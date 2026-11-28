@@ -86,6 +86,36 @@ test.describe('Moving views', () => {
     await expect(layout.keptCanvases).toHaveCount(4);
   });
 
+  test('previews where a view docked beside its neighbor lands', async ({
+    page,
+    layout,
+  }) => {
+    const { preview, boundsOf, dragView, openQuad } = createMoveHelpers(
+      page,
+      layout
+    );
+    await openQuad();
+    const coronal = await boundsOf('Coronal');
+
+    await dragView(
+      'Axial',
+      {
+        x: Math.round(coronal.left + 10),
+        y: Math.round(coronal.top + coronal.height / 2),
+      },
+      { hold: true }
+    );
+    await expect(preview).toBeVisible();
+    const expected = await layout.bounds(preview);
+    await page.mouse.up();
+    await expect(preview).toBeHidden();
+
+    const landed = await boundsOf('Axial');
+    (['left', 'top', 'width', 'height'] as const).forEach((side) =>
+      expectNear(landed[side], expected[side])
+    );
+  });
+
   test('swaps two views when one is dropped on the middle of the other', async ({
     page,
     layout,

@@ -8,10 +8,10 @@ import { Tools } from '@/src/store/tools/types';
 import {
   alignedDividers,
   axisOf,
-  dropZoneBounds,
   getLayoutDividers,
   getLayoutPanes,
   moveLayoutDividers,
+  moveLayoutView,
   pickDropZone,
   resetLayoutDividers,
   type Bounds,
@@ -145,11 +145,15 @@ const sameTarget = (a?: MoveTarget, b?: MoveTarget) =>
 const movingViewId = computed(() => move.value?.viewId);
 const panes = computed(() => getLayoutPanes(props.layout));
 
+// The moved view's pane in the layout the drop would commit.
 const movePreview = computed(() => {
-  const target = move.value?.target;
-  if (!target) return undefined;
-  const pane = panes.value.find(({ viewId }) => viewId === target.viewId);
-  return pane && percentStyle(dropZoneBounds(pane, target.zone));
+  const current = move.value;
+  if (!current?.target) return undefined;
+  const { viewId, zone } = current.target;
+  const landed = getLayoutPanes(
+    moveLayoutView(props.layout, current.viewId, viewId, zone)
+  ).find((pane) => pane.viewId === current.viewId);
+  return landed && percentStyle(landed);
 });
 
 function dropTarget({ viewId, container: rect }: Move, event: PointerEvent) {
@@ -202,6 +206,8 @@ useEventListener(
   ['pointermove', 'pointerup', 'pointercancel', 'lostpointercapture'],
   onMovePointer
 );
+// A handle removed mid-move loses its capture at the document.
+useEventListener(document, 'lostpointercapture', onMovePointer);
 
 function startMove(viewId: string, event: PointerEvent) {
   if (move.value || drag.value || !container.value || event.button !== 0)

@@ -521,23 +521,6 @@ export function pickDropZone(
   return nearest?.zone ?? 'center';
 }
 
-/** The part of the target pane a dropped view will take. */
-export function dropZoneBounds(pane: Bounds, zone: DropZone): Bounds {
-  const half = { width: pane.width / 2, height: pane.height / 2 };
-  switch (zone) {
-    case 'left':
-      return { ...pane, width: half.width };
-    case 'right':
-      return { ...pane, left: pane.left + half.width, width: half.width };
-    case 'top':
-      return { ...pane, height: half.height };
-    case 'bottom':
-      return { ...pane, top: pane.top + half.height, height: half.height };
-    default:
-      return pane;
-  }
-}
-
 /** Splits each divider's two neighbors evenly again. */
 export const resetLayoutDividers = (
   layout: Layout,
