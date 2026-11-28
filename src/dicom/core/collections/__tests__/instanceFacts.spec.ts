@@ -329,7 +329,7 @@ function seriesKeyOf(tags: Iterable<readonly [string, string]>) {
 }
 
 describe('single-frame and spacing normalization', () => {
-  it.each([undefined, '', '  ', '1', '01'])(
+  it.each([undefined, '', '  ', '0', '1', '01'])(
     'defaults NumberOfFrames %s to one',
     (frames) => {
       expect(

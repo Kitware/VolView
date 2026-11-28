@@ -351,7 +351,7 @@ describe('DicomVolumeImage failures', () => {
     await show(image, volumeOf([instance]));
 
     expect(errors.map(({ message }) => message)).toEqual([
-      expect.stringMatching(/frame 2 could not be read: reset$/),
+      expect.stringMatching(/frame 0 could not be read: reset$/),
     ]);
     expect(image.isLoading()).toBe(false);
     expect(image.isLoaded()).toBe(true);

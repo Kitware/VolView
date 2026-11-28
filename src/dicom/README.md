@@ -34,7 +34,8 @@ both boundaries.
 - A `ByteSource` opens a fresh stream per read and holds nothing between
   reads. Instances keep no bytes; read the source again for them.
 - `readInstance` stops reading at Pixel Data, or after Modality for
-  radiotherapy objects. The dataset omits private elements.
+  radiotherapy objects other than RT Image. The dataset omits private
+  elements.
 - `registerInstances` is a pure reducer: abandoning an import is not
   assigning the returned state. The first registration of a SOP Instance UID
   is kept.

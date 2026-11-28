@@ -4,6 +4,7 @@ import type { InstanceFacts } from './planDicomCollections';
 import { Tags } from '../metadata/dicomTags';
 import type { DicomDataset } from '../metadata/dicomDataset';
 import { getFrameTag } from '../metadata/functionalGroups';
+import { frameCount } from '../pixels/pixelDecoder';
 import { trimDicomPadding } from '../utils';
 
 // Dataset text keeps DICOM's own byte padding, so a value that is only
@@ -140,10 +141,7 @@ export function readInstanceDetails(metadata: DicomDataset) {
   const frames =
     textOf(metadata, Tags.Modality) === 'SEG'
       ? null
-      : multiframeGeometry(
-          metadata,
-          numberOf(metadata, Tags.NumberOfFrames) ?? 1
-        );
+      : multiframeGeometry(metadata, frameCount(metadata));
   const { orientation, position, pixelSpacing } =
     frames ?? readGeometryFacts(metadata);
 
@@ -158,7 +156,7 @@ export function readInstanceDetails(metadata: DicomDataset) {
     rows: numericTextOf(metadata, Tags.Rows),
     columns: numericTextOf(metadata, Tags.Columns),
     samplesPerPixel: numericTextOf(metadata, Tags.SamplesPerPixel),
-    numberOfFrames: numericTextOf(metadata, Tags.NumberOfFrames) ?? '1',
+    numberOfFrames: String(frameCount(metadata)),
     orientation,
     position,
     projectedPosition: projectOnNormal(sliceNormalOf(orientation), position),

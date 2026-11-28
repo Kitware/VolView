@@ -10,6 +10,7 @@ import {
   type DicomLayout,
 } from '@/src/dicom/core/metadata/dicomLayout';
 import type { DicomRuntime } from '@/src/dicom/core/runtime/createDicomRuntime';
+import { isDroppedRadiotherapy } from '@/src/dicom/core/header/readDicomHeader';
 import { useDicomRuntimeStore } from '@/src/store/dicom-runtime';
 import { Skip } from '@/src/utils/evaluateChain';
 import {
@@ -23,8 +24,9 @@ import { getErrorDetail } from '@/src/utils';
 import { surfaceWarning, useMessageStore } from '@/src/store/messages';
 import { Maybe } from '@/src/types';
 
-// A folder of files that all depart from Part 10 the same way would raise one
-// notice per file, so each departure is reported once per session.
+// A folder of files that depart from Part 10, or are skipped, for the same
+// reason would raise one notice per file, so each reason is reported once per
+// session.
 const noticed = new WeakMap<object, Set<string>>();
 
 const noticeOnce = (key: string, title: string, details: string) => {
@@ -81,20 +83,30 @@ async function readHeader(dataSource: DataSource, runtime: DicomRuntime) {
   }
 }
 
-/**
- * Reads a DICOM source's header and hands it on as an instance to import later.
- */
 /** Why a readable DICOM object is not imported, or null when it holds an image. */
 function whySkipped(dataset: DicomDataset, name: Maybe<string>) {
   const modality = getDatasetModality(dataset);
-  if (modality?.startsWith('RT'))
-    return `DICOM ${modality} modality is not supported. File ${name} will be skipped.`;
+  if (isDroppedRadiotherapy(modality))
+    return {
+      key: `unsupported:${modality}`,
+      title: `DICOM ${modality} modality is not supported. File ${name} will be skipped.`,
+      details: `Other ${modality} files are skipped without further notice.`,
+    };
   // Reports, key objects and directories carry no pixel matrix to allocate.
-  if (getDatasetTag(dataset, Tags.Rows) === undefined)
-    return `DICOM file ${name} holds no image${modality ? ` (modality ${modality})` : ''}. It will be skipped.`;
+  if (getDatasetTag(dataset, Tags.Rows) === undefined) {
+    const which = modality ? ` (modality ${modality})` : '';
+    return {
+      key: `no-image:${modality ?? ''}`,
+      title: `DICOM file ${name} holds no image${which}. It will be skipped.`,
+      details: `Other files that hold no image${which} are skipped without further notice.`,
+    };
+  }
   return null;
 }
 
+/**
+ * Reads a DICOM source's header and hands it on as an instance to import later.
+ */
 const handleDicom: ImportHandler = async (dataSource) => {
   if (!isDicom(dataSource)) return Skip;
 
@@ -114,7 +126,7 @@ const handleDicom: ImportHandler = async (dataSource) => {
 
   const skipped = whySkipped(instance.dataset, name);
   if (skipped) {
-    useMessageStore().addWarning(skipped);
+    noticeOnce(skipped.key, skipped.title, skipped.details);
     return asOkayResult(dataSource);
   }
 

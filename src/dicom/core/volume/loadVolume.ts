@@ -33,7 +33,7 @@ export type LoadVolumeOptions = {
     'decoders' | 'decodeConcurrency' | 'readConcurrency' | 'signal'
   >;
   signal: AbortSignal;
-  /** Read before every read and decode; defaults to the middle member's slot. */
+  /** Read before every read and decode; defaults to the middle slice. */
   focus?: () => number;
 };
 
@@ -192,9 +192,9 @@ const markLoaded = (volume: Volume, update: VolumeUpdate) => {
     volume.loaded.fill(1, update.extent[4], update.extent[5] + 1);
 };
 
-/** The first slice of the middle member, the default focus. */
+/** The middle slice, the default focus. */
 export const middleSlot = (volume: Volume) =>
-  memberSlices(volume, Math.floor(volume.members.length / 2))[0];
+  Math.floor(volume.dimensions[2] / 2);
 
 type Loader = {
   volume: Volume;

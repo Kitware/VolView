@@ -468,7 +468,7 @@ const readElements = (
     if (next.element) elements.push(next.element);
   }
   if (untilItemDelimiter)
-    throw new Error('Missing item delimiter in undefined-length UN');
+    throw new Error('Missing delimiter of an undefined-length sequence item');
   return elements;
 };
 

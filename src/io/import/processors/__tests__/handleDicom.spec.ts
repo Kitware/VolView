@@ -200,7 +200,7 @@ describe('handleDicom', () => {
     }
   );
 
-  it('skips an object that holds no image and says so', async () => {
+  it('skips objects that hold no image and says so once', async () => {
     const report = part10File(
       '1.2.840.10008.5.1.4.1.1.88.11',
       '1.2.826.0.1.3680043.10.997.88',
@@ -208,12 +208,27 @@ describe('handleDicom', () => {
       rawElement(0x0008, 0x0060, 'CS', new TextEncoder().encode('SR'))
     );
 
-    const result = await handleDicom(fileSource(report, 'report.dcm'));
+    const results = [
+      await handleDicom(fileSource(report, 'report.dcm')),
+      await handleDicom(fileSource(report, 'second.dcm')),
+    ];
 
-    expect(result).toMatchObject({ type: 'ok' });
-    expect(useMessageStore().messages[0].title).toBe(
+    expect(results).toMatchObject([{ type: 'ok' }, { type: 'ok' }]);
+    const { messages } = useMessageStore();
+    expect(messages).toHaveLength(1);
+    expect(messages[0].title).toBe(
       'DICOM file report.dcm holds no image (modality SR). It will be skipped.'
     );
+  });
+
+  it('loads an RT Image, which holds a plain image', async () => {
+    const bytes = syntheticSlice({ modality: 'RTIMAGE' });
+
+    const { instance } = instanceOf(await handleDicom(fileSource(bytes)));
+
+    expect(instance.dataset).toEqual(headerOf(bytes));
+    expect(instance.pixelData).not.toBeNull();
+    expect(useMessageStore().messages).toHaveLength(0);
   });
 
   it('does not skip a non-RT modality whose name starts with R', async () => {

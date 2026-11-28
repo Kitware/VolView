@@ -33,11 +33,12 @@ const isTag = (
 ) => group === tag[0] && element === tag[1];
 
 /**
- * Radiotherapy objects are dropped on their modality alone, so nothing past
- * that element is read: a structure set carries megabytes of contours.
+ * Radiotherapy objects other than RT Image are dropped on their modality
+ * alone, so nothing past that element is read: a structure set carries
+ * megabytes of contours.
  */
-const isRadiotherapy = (modality: string | undefined) =>
-  modality?.startsWith('RT') ?? false;
+export const isDroppedRadiotherapy = (modality: string | null | undefined) =>
+  (modality?.startsWith('RT') ?? false) && modality !== 'RTIMAGE';
 
 /**
  * Float and Double Float Pixel Data end the header too, but are not located:
@@ -59,7 +60,7 @@ function headerParser() {
       return (
         found.atPixelData ||
         isFloatPixelData(group, element) ||
-        isRadiotherapy(found.modality)
+        isDroppedRadiotherapy(found.modality)
       );
     },
     onLayout: (layout) => {

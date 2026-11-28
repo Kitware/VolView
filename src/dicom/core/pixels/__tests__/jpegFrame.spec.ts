@@ -37,6 +37,11 @@ describe('jpegPrecision', () => {
       12,
     ],
     [
+      'a header behind fill bytes',
+      [[0xff, 0xff], QUANTIZATION, [0xff], startOfFrame(0xc1, 12)],
+      12,
+    ],
+    [
       'a stream with no frame header ahead of its scan',
       [QUANTIZATION],
       undefined,
@@ -64,11 +69,14 @@ describe('asStoredRgb', () => {
   it.each([
     ['JFIF', segment(0xe0, 'JFIF\0')],
     ['Adobe', segment(0xee, 'Adobe\0\0\0\0\0\0\u0001')],
-  ])('leaves a stream with a %s segment to state its own', (_name, stated) => {
-    const bytes = frame(QUANTIZATION, stated);
+  ])(
+    'leaves a stream with a %s segment behind a fill byte to state its own',
+    (_name, stated) => {
+      const bytes = frame(QUANTIZATION, [0xff], stated);
 
-    expect(asStoredRgb(bytes)).toBe(bytes);
-  });
+      expect(asStoredRgb(bytes)).toBe(bytes);
+    }
+  );
 
   it('does not take another application segment for a statement', () => {
     const bytes = frame(segment(0xe0, 'JFXX\0'));

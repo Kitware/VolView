@@ -139,8 +139,8 @@ describe('loadVolume with native frames', () => {
     const { volume, updates } = await load([instance], { readConcurrency: 1 });
 
     const start = instance.pixelData!.valueOffset;
-    expect(updates.map((update) => update.slot)).toEqual([0, 4, 2, 1, 3]);
-    expect(updates[2]).toEqual({
+    expect(updates.map((update) => update.slot)).toEqual([2, 0, 4, 1, 3]);
+    expect(updates[0]).toEqual({
       slot: 2,
       extent: [0, 2, 0, 1, 2, 2],
       range: [
@@ -149,7 +149,7 @@ describe('loadVolume with native frames', () => {
     });
     expect(ranges).toEqual([
       undefined,
-      ...[0, 4, 2, 1, 3].map((frame) => ({
+      ...[2, 0, 4, 1, 3].map((frame) => ({
         start: start + frame * 12,
         end: start + (frame + 1) * 12,
       })),
@@ -298,12 +298,12 @@ describe('loadVolume with native frames', () => {
         `bytes=${start + index * 12}-${start + (index + count) * 12 - 1}`;
       const [header, probe, ...rest] = asked;
       expect(header).toBeNull();
-      expect(probe).toBe(frames(0));
+      expect(probe).toBe(frames(2));
       expect(rest).toHaveLength(requests - 2);
       expect(rest).toEqual(
         behavior === 'honors'
-          ? expect.arrayContaining([1, 2, 3, 4].map((index) => frames(index)))
-          : [frames(1, FRAMES - 1)]
+          ? expect.arrayContaining([0, 1, 3, 4].map((index) => frames(index)))
+          : [frames(0, FRAMES)]
       );
       expect(Array.from(volume.data)).toEqual(words);
     }
@@ -354,9 +354,9 @@ describe('loadVolume with native frames', () => {
     });
 
     const start = instance.pixelData!.valueOffset;
-    expect(updates.map((update) => update.slot)).toEqual([0, 4, 2, 1, 3]);
+    expect(updates.map((update) => update.slot)).toEqual([2, 0, 4, 1, 3]);
     expect(ranges.slice(1)).toEqual(
-      [0, 4, 2, 1, 3].map((frame) => ({
+      [2, 0, 4, 1, 3].map((frame) => ({
         start: start + frame * 12,
         end: start + (frame + 1) * 12,
       }))

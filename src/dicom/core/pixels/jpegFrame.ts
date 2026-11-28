@@ -20,6 +20,11 @@ function* segmentsBeforeScan(frame: Uint8Array) {
   let at = SOI_LENGTH;
   while (at + 4 <= frame.length && frame[at] === 0xff) {
     const code = frame[at + 1];
+    // Any marker may be preceded by 0xFF fill bytes (ISO 10918-1 B.1.1.2).
+    if (code === 0xff) {
+      at += 1;
+      continue;
+    }
     if (code === SOS) return;
     const length = (frame[at + 2] << 8) | frame[at + 3];
     yield { code, payload: frame.subarray(at + 4, at + 2 + length) };

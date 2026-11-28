@@ -188,6 +188,23 @@ describe('lenient headers with standards-defined values', () => {
     await expect(readHeader(cut)).rejects.toThrow(message);
   });
 
+  it('names a sequence item that is missing its delimiter', () => {
+    const sequence = undefinedLengthSequence(
+      0x0008,
+      0x1140,
+      undefinedLengthItem(rawElement(0x0008, 0x1150, 'UI', encode('1.2.3\0')))
+    );
+    const base = buildSlice();
+    // Drops the item and sequence delimiters.
+    const bytes = concatBytes([
+      base.subarray(0, pixelDataStart(base)),
+      sequence.subarray(0, sequence.length - 16),
+    ]);
+    expect(() => readDicomDataset(bytes)).toThrow(
+      'Missing delimiter of an undefined-length sequence item'
+    );
+  });
+
   it('does not recover a nested sequence past its enclosing item', async () => {
     const inner = rawElement(
       0x0008,
