@@ -79,6 +79,65 @@ test.describe('Resizing views', () => {
     await expect(layout.keptCanvases).toHaveCount(2);
   });
 
+  test('stops a divider where a pane reaches its minimum width, keeping its controls inside', async ({
+    page,
+    layout,
+  }) => {
+    const { narrowFirstPane } = createResizeHelpers(page, layout);
+    await narrowFirstPane();
+
+    const pane = layout.panes.first();
+    const lines = pane
+      .locator('.annotation-cell', { has: page.locator('.slice-label') })
+      .locator(':scope > *');
+    await expect(lines.first()).toBeVisible();
+    const fit = async () => {
+      const bounds = await layout.bounds(pane);
+      const controls = await layout.bounds(pane.locator('.view-controls'));
+      const textRights = await Promise.all(
+        (await lines.all()).map(
+          async (line) => (await layout.bounds(line)).right
+        )
+      );
+      return {
+        controlsInside:
+          controls.left >= bounds.left && controls.right <= bounds.right,
+        textClear: textRights.every((right) => right <= controls.left),
+      };
+    };
+    await expect.poll(fit).toEqual({ controlsInside: true, textClear: true });
+  });
+
+  test('moves the view type into View actions while a pane is narrow', async ({
+    page,
+    utils,
+    layout,
+  }) => {
+    const { narrowFirstPane } = createResizeHelpers(page, layout);
+    await narrowFirstPane();
+    await expect(layout.panes.nth(0).locator('.view-type-select')).toHaveCount(
+      0
+    );
+    await expect(
+      layout.panes.nth(1).locator('.view-type-select')
+    ).toBeAttached();
+
+    await layout.viewAction(0, 'Coronal');
+    await layout.openViewActions(0);
+    await expect(utils.overlayOption('Coronal')).toHaveClass(
+      /\bv-list-item--active\b/
+    );
+
+    await layout.expectCanvasPerPane();
+    await layout.markCanvases();
+    await layout.viewAction(0, 'Coronal');
+    await layout.openViewActions(0);
+    await expect(utils.overlayOption('Coronal')).toHaveClass(
+      /\bv-list-item--active\b/
+    );
+    await expect(layout.keptCanvases).toHaveCount(2);
+  });
+
   test('shows overlay text in full while the pane has room for it', async ({
     page,
     layout,

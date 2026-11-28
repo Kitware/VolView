@@ -71,6 +71,10 @@ function toggleMaximized() {
         </v-btn>
       </template>
       <v-list density="compact" aria-label="View actions">
+        <template v-if="$slots.default">
+          <slot />
+          <v-divider />
+        </template>
         <ReasonedAction :reason="splitReasons.row" block v-slot="{ disabled }">
           <v-list-item
             :prepend-icon="sideBySideIcon"

@@ -289,10 +289,12 @@ watch(
             </template>
             <EnFaceControlPanel :view-id="viewId" :data-id="currentImageID" />
           </v-menu>
+          <!-- The rendering controls button and its gap share the row. -->
           <ViewTypeSwitcher
             class="ml-0"
             :view-id="viewId"
             :image-id="currentImageID"
+            :beside-width="34"
           />
         </div>
       </template>

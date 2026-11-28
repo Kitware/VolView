@@ -214,6 +214,63 @@ test.describe('Splitting individual views', () => {
       .toBe(true);
   });
 
+  test('keeps narrow-pane controls inside the view and guards splits while maximized', async ({
+    page,
+    volview,
+    utils,
+    layout,
+  }) => {
+    const { openSplitFixture } = createSplitHelpers({
+      page,
+      volview,
+      utils,
+      layout,
+    });
+    await openSplitFixture();
+    await layout.viewAction(1, 'Split side by side');
+    await layout.waitForPaneCount(3);
+
+    const controlsFit = async () => {
+      for (const pane of await layout.panes.all()) {
+        const bounds = await layout.bounds(pane);
+        const controls = await layout.bounds(pane.locator('.view-controls'));
+        if (
+          controls.left < bounds.left ||
+          controls.right > bounds.right ||
+          controls.top < bounds.top ||
+          controls.bottom > bounds.bottom
+        )
+          return false;
+      }
+      return true;
+    };
+    await expect
+      .poll(controlsFit, {
+        message: 'Expected every pane to hold its controls',
+      })
+      .toBe(true);
+
+    const checkGuard = async (reason: string, topBottomDisabled: boolean) => {
+      await layout.expectMenuItemDisabled('Split side by side');
+      await layout.expectMenuItemReason('Split side by side', reason);
+      await layout.expectMenuItemDisabled(
+        'Split top and bottom',
+        topBottomDisabled
+      );
+    };
+
+    await layout.openViewActions(2);
+    await checkGuard('This view is too narrow to split side by side', false);
+    await page.keyboard.press('Escape');
+    await layout.panes
+      .nth(2)
+      .locator('[data-testid~="vtk-view"] .view')
+      .dblclick();
+    await layout.waitForPaneCount(1);
+    await layout.openViewActions(0);
+    await checkGuard('Restore the view to split it', true);
+  });
+
   test('gives either closed half of a split back to the other half', async ({
     page,
     volview,
