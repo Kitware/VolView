@@ -17,11 +17,7 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "types": [
-      "node",
-      "@wdio/globals/types",
-      "expect-webdriverio",
-      "@wdio/mocha-framework",
-      "@wdio/visual-service"
+      "node"
     ],
     "paths": {
       "@/*": [
@@ -47,9 +43,5 @@
   ],
   "exclude": [
     "node_modules"
-  ],
-  "ts-node": {
-    "esm": true,
-    "experimentalSpecifierResolution": "node"
-  }
+  ]
 }

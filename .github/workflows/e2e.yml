@@ -3,17 +3,11 @@ on:
   pull_request:
 
 jobs:
-  test:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    name: E2E Testing on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    env:
-      DOWNLOAD_TIMEOUT: 90000
-      VITE_SHOW_SAMPLE_DATA: true
+  build:
+    name: Build
+    runs-on: ubuntu-latest
     steps:
+      # The build stamps its version from git describe, which needs the tags.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -24,27 +18,114 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Build
+        run: npm run build
+        env:
+          VITE_SHOW_SAMPLE_DATA: true
+      - name: Upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
+          retention-days: 1
+
+  test:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        shard: [1, 2, 3, 4]
+    name: E2E Testing on ${{ matrix.os }} (${{ matrix.shard }}/4)
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      # Keep in step with the cache step in e2e-datasets.yml.
       - name: Cache test datasets
         uses: actions/cache@v4
         with:
           path: .tmp/datasets
           key: e2e-datasets-${{ hashFiles('tests/datasets.ts') }}
           restore-keys: e2e-datasets-
-      - name: Run E2E on chrome (linux)
-        if: matrix.os == 'ubuntu-latest'
-        run: env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY npm run test:e2e:chrome
-      - name: Set screen resolution (windows)
-        if: matrix.os == 'windows-latest'
-        run: Set-DisplayResolution -Width 1920 -Height 1080 -Force
-        shell: pwsh
-      - name: Run E2E on chrome (non-linux)
-        if: matrix.os != 'ubuntu-latest'
-        run: npm run test:e2e:chrome
-      - name: Archive test results
-        if: success() || failure()
-        uses: actions/upload-artifact@v4
-        continue-on-error: true
+      # One browser path on every OS, so one cache step covers both.
+      - name: Locate Playwright browsers
+        id: playwright
+        run: |
+          echo "PLAYWRIGHT_BROWSERS_PATH=$RUNNER_TEMP/ms-playwright" >> "$GITHUB_ENV"
+          echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        id: browser-cache
+        uses: actions/cache@v4
         with:
-          name: image_comparison_results_${{ matrix.os }}
-          path: .tmp/runs
+          path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      - name: Install Chromium
+        if: steps.browser-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      - name: Install Chromium system dependencies
+        if: steps.browser-cache.outputs.cache-hit == 'true' && runner.os == 'Linux'
+        run: npx playwright install-deps chromium
+      - name: Download build
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - name: Run E2E
+        run: npx playwright test --shard=${{ matrix.shard }}/4
+      - name: Upload blob report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: blob-report-${{ matrix.os }}-${{ matrix.shard }}
+          path: blob-report
+          retention-days: 1
+      # Failure screenshots, traces, and actual and diff images.
+      - name: Upload run directory
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-run-${{ matrix.os }}-${{ matrix.shard }}
+          path: .tmp/runs/*/run-*/
+          include-hidden-files: true
+          retention-days: 5
+
+  report:
+    needs: test
+    # Skipped when the build failed, since no shard produced a blob.
+    if: ${{ !cancelled() && needs.test.result != 'skipped' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    name: E2E report for ${{ matrix.os }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Download blob reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: blob-report-${{ matrix.os }}-*
+          path: all-blob-reports
+          merge-multiple: true
+      - name: Merge reports
+        run: npx playwright merge-reports --reporter html ./all-blob-reports
+      - name: Upload HTML report
+        uses: actions/upload-artifact@v4
+        with:
+          name: html-report-${{ matrix.os }}
+          path: playwright-report
           retention-days: 5

@@ -22,7 +22,6 @@ For reproducible installs, use:
 npm ci
 ```
 
-
 ---
 
 ## Dependencies
@@ -93,23 +92,37 @@ The limits are in `scripts/checks/config.mjs`. Stage your changes before running
 # unit tests
 npm run test
 
-# e2e tests (Chrome)
-npm run test:e2e:chrome
+# e2e tests (Chromium, through Playwright)
+npx playwright install chromium   # once
+npm run test:e2e:chrome            # build with sample data, then run the suite
+npm run test:e2e:chrome:skip-build # run the suite against the existing dist/
+
+# one file, or tests whose title matches
+npm run test:e2e:chrome:skip-build -- tests/specs/remote-manifest.e2e.ts
+npm run test:e2e:chrome:skip-build -- -g "should load relative URI with no name property"
+
+# against the vite dev server instead of dist/; add -- --ui for the UI mode
+npm run test:e2e:dev -- tests/specs/remote-manifest.e2e.ts
 ```
 
-When running end-to-end tests, baseline images are saved to `tests/baseline`. Baseline diffs and actual snapshots are saved to `.tmp/runs/<port>`, where `<port>` is the static server port this checkout uses. Locally, a passing run deletes that directory on the way out, so the snapshots stay around only after a failure. CI always keeps it, so the artifacts below are there whether the run passed or not.
+Each invocation writes to `.tmp/runs/<port>/run-<id>`, where `<port>` is the static server port this checkout uses: `results/` holds failure screenshots, traces and the actual and diff images of a failed screenshot comparison, and `report/` holds the HTML report. Open it with `npx playwright show-report .tmp/runs/<port>/run-<id>/report`. Locally, a passing run deletes `.tmp/runs/<port>` on the way out, so the output stays around only after a failure. CI always keeps it and uploads it with the blob reports; the workflow merges those into one HTML report per OS.
+
+CI records a trace for every failed test. Locally, add `--trace on` to record one for each test, then open it with `npx playwright show-trace .tmp/runs/<port>/run-<id>/results/<test>/trace.zip`.
+
+Screenshot assertions compare against the images in `tests/baseline`. A missing baseline is written and passes locally, but fails on CI. Add `--update-snapshots` to rewrite baselines that changed. CI rendering is the reference, so take a new or changed baseline from the run directory artifact of a CI run, not from a local run.
 
 Downloaded test datasets are cached in `.tmp/datasets` and shared by every run, so deleting a run directory does not force a re-download.
 
 Two checkouts get different ports and different run directories, so their suites can run at the same time. Two suites out of one checkout cannot: they would share `dist/` and `tests/baseline`. Set `VOLVIEW_E2E_PORT` and `VOLVIEW_E2E_AUX_PORT` if something else already holds the ports a checkout picked.
 
-When adding a new baseline image and test, the image should be pulled from GitHub Actions. Every test run will upload artifacts containing the snapshots taken, and those should be used when verifying and committing the baseline images.
+#### Writing e2e tests
 
-#### Run one e2e spec file
-
-```bash
-npm run test:e2e:dev -- -- --spec ./tests/specs/remote-manifest.e2e.ts
-```
+- Assert on what a user can perceive. Never read Pinia, the Vue app or vtk objects from the page.
+- Wait for a visible outcome, never for time.
+- No `timeout` options, pauses or `test.setTimeout`; lint rejects them. Mark a heavy test with `test.slow()`, and wait on large data with `expectWithinTest` from `tests/e2eRun.ts`.
+- When elapsed time is what the test is about, drive it with `page.clock`.
+- For a file whose tests build on one page, call `useSharedPage()` from `tests/fixtures.ts` at the top of the `describe` block.
+- Flip an expected value once to see a new spec fail.
 
 ---
 

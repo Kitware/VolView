@@ -464,7 +464,7 @@ test.describe('Annotations sidebar', () => {
     }
     // The row locator matches by title, so find the same row by its new name.
     const lesion = await segmentation.segmentRow('Lesion');
-    // One button whichever icon it shows, as WebdriverIO held the element.
+    // One button whichever icon it shows.
     const hide = lesion.locator(
       'button:has(i.mdi-eye), button:has(i.mdi-eye-off)'
     );

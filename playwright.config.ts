@@ -10,7 +10,9 @@ import {
 
 const IS_LINUX_CI = IS_CI && process.platform === 'linux';
 const IS_DEV = !!process.env.E2E_DEV;
-const DEV_SERVER_URL = 'http://localhost:8080';
+// A port of this checkout's own, below the range the static servers use.
+const DEV_SERVER_PORT = TEST_PORT - 10000;
+const DEV_SERVER_URL = `http://localhost:${DEV_SERVER_PORT}`;
 
 // Playwright clears its output directory before the webServer claims the port,
 // so each invocation writes under a directory of its own. Workers inherit the
@@ -45,9 +47,13 @@ export default defineConfig({
   retries: 0,
   timeout: TEST_BUDGET,
   expect: { timeout: WAIT_BUDGET },
+  // CI shards each write a blob, and the workflow merges them into one HTML
+  // report per OS.
   reporter: [
     ['list'],
-    ['html', { outputFolder: path.join(RUN_DIR, 'report'), open: 'never' }],
+    IS_CI
+      ? ['blob', { outputDir: 'blob-report' }]
+      : ['html', { outputFolder: path.join(RUN_DIR, 'report'), open: 'never' }],
     ['./tests/runDirReporter.ts'],
   ],
   globalSetup: './tests/globalSetup.ts',
@@ -60,7 +66,7 @@ export default defineConfig({
     ...(IS_DEV
       ? [
           {
-            command: 'npm run dev',
+            command: `npm run dev -- --port ${DEV_SERVER_PORT} --strictPort`,
             url: DEV_SERVER_URL,
             reuseExistingServer: true,
           },

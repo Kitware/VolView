@@ -111,7 +111,7 @@ export const createOctUtils = (page: Page, scratch: Scratch) => {
   const volview = createVolViewPage(page, scratch);
   const utils = createUtils(page, scratch);
   const segmentation = createSegmentationUtils(page, scratch);
-  // WebdriverIO's `$` took the first viewer and canvas on the page.
+  // A page can hold several viewers and canvases; these mean the first.
   const enFaceView = (view?: Locator) => view ?? page.locator(VIEWER).first();
   const firstCanvas = () => page.locator(CANVAS).first();
   const expectPanelGone = () => expect(page.locator(MENU_PANEL)).toBeHidden();

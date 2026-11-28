@@ -20,8 +20,7 @@ test.describe('Ultrasound image spacing', () => {
 
     await page.locator('button span i[class~=mdi-ruler]').click();
 
-    // Offsets are measured from the canvas center, as WebdriverIO's
-    // element.click({ x, y }) measured them.
+    // Offsets are measured from the canvas center.
     const box = await page
       .locator('div[data-testid="vtk-view vtk-cine-view"] canvas')
       .first()
