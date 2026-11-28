@@ -203,7 +203,10 @@ export const createOctUtils = (page: Page, scratch: Scratch) => {
     page.locator('button[data-testid^="control-button-' + name + ' "]');
 
   const selectEnFace = async (viewIndex = 0) => {
-    await page.locator('.view-type-select .v-field').nth(viewIndex).click();
+    const switcher = page.locator('.view-type-select .v-field').nth(viewIndex);
+    await switcher.click();
+    // En face stays disabled until the complete volume has loaded.
+    await volview.waitForLoadingIndicator(switcher);
     await utils.overlayOption('En face').click();
     await expect(firstCanvas()).toBeVisible();
   };

@@ -169,8 +169,14 @@ export const createVolViewPage = (page: Page, scratch: Scratch) => {
       })
       .toBeGreaterThanOrEqual(1);
 
-  const getNotificationTitles = async () => {
+  /** Opens the message center once no toast covers its button. */
+  const openNotifications = async () => {
+    await expect(page.locator('.Vue-Toastification__toast')).toHaveCount(0);
     await notifications.click();
+  };
+
+  const getNotificationTitles = async () => {
+    await openNotifications();
     const titles = page.locator(
       '.message-center .v-expansion-panel-title .header > span'
     );
@@ -228,10 +234,7 @@ export const createVolViewPage = (page: Page, scratch: Scratch) => {
     return path.basename(filePath);
   };
 
-  const getVolumeRenderingSection = async () => {
-    const pwfEditor = page.locator('div.pwf-editor');
-    return (await pwfEditor.count()) ? pwfEditor : undefined;
-  };
+  const getVolumeRenderingSection = () => page.locator('div.pwf-editor');
 
   const getView3D = async () => {
     const view3D = page.locator(VIEW_3D);
@@ -386,6 +389,59 @@ export const createVolViewPage = (page: Page, scratch: Scratch) => {
     await waitForSliceDecrease(initialSlice);
   };
 
+  /** Every view has a sized canvas and none is still loading its image. */
+  const waitForViewsLoaded = () =>
+    expect
+      .poll(
+        () =>
+          page.evaluate(() => {
+            const canvases = Array.from(
+              document.querySelectorAll<HTMLCanvasElement>(
+                'div[data-testid~="vtk-view"] canvas'
+              )
+            );
+            return (
+              canvases.length > 0 &&
+              canvases.every(
+                ({ width, height }) => width > 10 && height > 10
+              ) &&
+              !document.querySelector('.loading-indicator')
+            );
+          }),
+        { message: 'Expected every view to finish loading' }
+      )
+      .toBe(true);
+
+  const volumeCards = page.locator('.volume-card');
+
+  /** Waits for the volume cards' "[N]" slice counts, ascending, to be `expected`. */
+  const waitForVolumeCardSliceCounts = (expected: number[]) =>
+    expect
+      .poll(
+        async () =>
+          (await volumeCards.allInnerTexts())
+            .map((label) => Number(label.match(/\[(\d+)\]/)?.[1]))
+            .filter(Number.isFinite)
+            .sort((a, b) => a - b),
+        {
+          message: `expected volume cards holding ${expected.join(', ')} slices`,
+        }
+      )
+      .toEqual(expected);
+
+  /** Deletes the volume whose card label carries `[sliceCount]`. */
+  const deleteVolumeCard = async (sliceCount: number) => {
+    await volumeCards
+      .filter({ hasText: `[${sliceCount}]` })
+      .locator('button[data-testid="dataset-menu-button"]')
+      .click();
+    await page
+      .locator('.v-overlay-container .v-list-item', {
+        hasText: exactText('Delete'),
+      })
+      .click();
+  };
+
   const waitForLoadingIndicator = (view: Locator) =>
     expect
       .poll(
@@ -414,6 +470,7 @@ export const createVolViewPage = (page: Page, scratch: Scratch) => {
     notifications,
     getNotificationsCount,
     waitForNotification,
+    openNotifications,
     getNotificationTitles,
     selectTool,
     activateRectangle: () => selectTool('mdi-vector-square'),
@@ -488,6 +545,10 @@ export const createVolViewPage = (page: Page, scratch: Scratch) => {
     waitForSliceDecrease,
     advanceSliceAndWait,
     waitForLoadingIndicator,
+    waitForViewsLoaded,
+    volumeCards,
+    waitForVolumeCardSliceCounts,
+    deleteVolumeCard,
   };
 };
 

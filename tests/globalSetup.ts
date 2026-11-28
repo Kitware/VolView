@@ -3,7 +3,11 @@ import * as path from 'node:path';
 import { createServer } from 'node:net';
 import { AUX_PORT } from './e2ePorts';
 import { TEST_DATASETS } from './datasets';
-import { DATASET_CACHE, downloadDatasets } from './downloadDatasets';
+import {
+  DATASET_CACHE,
+  downloadDatasets,
+  downloadExtendedCorpus,
+} from './downloadDatasets';
 import { BROWSER_DOWNLOADS, TEMP_DIR } from './e2eRun';
 
 // Windows refuses to unlink a file while a handle is open, so give the static
@@ -50,5 +54,12 @@ export default async function globalSetup() {
   fs.mkdirSync(BROWSER_DOWNLOADS, { recursive: true });
 
   await downloadDatasets();
+  if (process.env.DICOM_CORPUS === 'extended') {
+    const unreachable = await downloadExtendedCorpus();
+    if (unreachable.length)
+      console.warn(
+        `Skipping unreachable extended corpus files:\n${unreachable.join('\n')}`
+      );
+  }
   TEST_DATASETS.forEach(({ name }) => linkCachedDataset(name));
 }

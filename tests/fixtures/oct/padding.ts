@@ -1,4 +1,4 @@
-import reference from './reference.json';
+import reference from './reference.json' with { type: 'json' };
 import {
   createSyntheticOCT,
   syntheticScalars,

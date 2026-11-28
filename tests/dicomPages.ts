@@ -1,26 +1,34 @@
-import { DOWNLOAD_TIMEOUT } from '../wdio.shared.conf';
+import { expect, type Page } from '@playwright/test';
 
-export async function openDicomPage(url: string, expectedError?: string) {
-  await browser.url(url);
-  await waitForDicomPage(expectedError);
-}
-
-export async function waitForDicomPage(
+export const waitForDicomPage = async (
+  page: Page,
   expectedError?: string,
   status = 'complete'
-) {
-  await browser.waitUntil(
-    async () =>
-      (await $('#error').isExisting()) ||
-      ((await $('#status').isExisting()) &&
-        (await $('#status').getText()) === status),
-    { timeout: DOWNLOAD_TIMEOUT }
-  );
+) => {
+  const error = page.locator('#error');
+  const statusText = page.locator('#status');
+  await expect
+    .poll(
+      async () =>
+        (await error.count()) > 0 ||
+        ((await statusText.count()) > 0 &&
+          (await statusText.innerText()) === status),
+      { message: `Expected the DICOM page to reach "${status}" or an error` }
+    )
+    .toBe(true);
   if (expectedError) {
-    await expect($('#error')).toHaveText(expectedError);
+    await expect(error).toHaveText(expectedError);
     return;
   }
-  if (await $('#error').isExisting())
-    throw new Error(await $('#error').getText());
-  await expect($('#status')).toHaveText(status);
-}
+  if (await error.count()) throw new Error(await error.innerText());
+  await expect(statusText).toHaveText(status);
+};
+
+export const openDicomPage = async (
+  page: Page,
+  url: string,
+  expectedError?: string
+) => {
+  await page.goto(url);
+  await waitForDicomPage(page, expectedError);
+};

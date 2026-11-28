@@ -1,20 +1,11 @@
-import { captureViewPixels } from './utils';
+import { expect, type Page } from '@playwright/test';
+import type { Utils } from './utils';
 
-type RenderedSlice = { width: number; height: number; data: Buffer };
+export type RenderedSlice = { width: number; height: number; data: Buffer };
 
 // The inset excludes orientation labels, slice counters, sliders and viewport
 // controls, so UI text cannot satisfy image assertions.
 const VIEW_INSET = 80;
-
-async function captureSlice(fileName: string) {
-  const [view] = await captureViewPixels(
-    '[data-testid~="vtk-two-view"]',
-    VIEW_INSET,
-    fileName
-  );
-  if (!view) throw new Error('No slice viewport');
-  return { ...view, height: view.data.length / 4 / view.width };
-}
 
 function hasImageContent(
   { width, height, data }: RenderedSlice,
@@ -57,34 +48,52 @@ function imageChanged(before: RenderedSlice, after: RenderedSlice) {
   return changed > before.width * before.height * 0.002;
 }
 
-export async function waitForRenderedSlice(fileName: string, color = false) {
-  await $('header').moveTo();
-  let image: RenderedSlice | undefined;
-  await browser.waitUntil(
-    async () => {
-      image = await captureSlice(fileName);
-      return hasImageContent(image, color);
-    },
-    {
-      timeoutMsg: `Expected anatomical ${color ? 'color' : 'grayscale'} content inside the slice viewport`,
-    }
-  );
-  return image!;
-}
+export const createRenderedSlice = (page: Page, utils: Utils) => {
+  const captureSlice = async (fileName: string) => {
+    const [view] = await utils.captureViewPixels(
+      '[data-testid~="vtk-two-view"]',
+      VIEW_INSET,
+      fileName
+    );
+    if (!view) throw new Error('No slice viewport');
+    return { ...view, height: view.data.length / 4 / view.width };
+  };
 
-export async function waitForRenderedSliceChange(
-  before: RenderedSlice,
-  fileName: string
-) {
-  await $('header').moveTo();
-  await browser.waitUntil(
-    async () => {
-      const after = await captureSlice(fileName);
-      return hasImageContent(after) && imageChanged(before, after);
-    },
-    {
-      timeoutMsg:
-        'Expected slice navigation to change the interior image pixels',
-    }
-  );
-}
+  const waitForRenderedSlice = async (fileName: string, color = false) => {
+    await page.locator('header').hover();
+    let image: RenderedSlice | undefined;
+    await expect
+      .poll(
+        async () => {
+          image = await captureSlice(fileName);
+          return hasImageContent(image, color);
+        },
+        {
+          message: `Expected anatomical ${color ? 'color' : 'grayscale'} content inside the slice viewport`,
+        }
+      )
+      .toBe(true);
+    return image!;
+  };
+
+  const waitForRenderedSliceChange = async (
+    before: RenderedSlice,
+    fileName: string
+  ) => {
+    await page.locator('header').hover();
+    await expect
+      .poll(
+        async () => {
+          const after = await captureSlice(fileName);
+          return hasImageContent(after) && imageChanged(before, after);
+        },
+        {
+          message:
+            'Expected slice navigation to change the interior image pixels',
+        }
+      )
+      .toBe(true);
+  };
+
+  return { waitForRenderedSlice, waitForRenderedSliceChange };
+};

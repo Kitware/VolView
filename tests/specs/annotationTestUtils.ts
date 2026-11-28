@@ -48,18 +48,21 @@ export const createAnnotationUtils = (page: Page, scratch: Scratch) => {
    * Loads the minimal DICOM or a generated fixture and returns the axial view
    * with the center of its canvas in page coordinates.
    */
+  const canvasCenter = async (view: Locator) => {
+    const box = await view.locator('canvas').boundingBox();
+    if (!box) throw new Error('The view has no canvas on screen');
+    return {
+      centerX: box.x + box.width / 2,
+      centerY: box.y + box.height / 2,
+    };
+  };
+
   const setupTest = async (fileName?: string) => {
     if (fileName) await utils.openVolViewPage(fileName);
     else await utils.openUrls([MINIMAL_DICOM]);
 
     const axialView = volview.views2D.first();
-    const box = await axialView.locator('canvas').boundingBox();
-    if (!box) throw new Error('The axial view has no canvas on screen');
-    return {
-      axialView,
-      centerX: box.x + box.width / 2,
-      centerY: box.y + box.height / 2,
-    };
+    return { axialView, ...(await canvasCenter(axialView)) };
   };
 
   /** Drags from the view's canvas center through offsets from that center. */
@@ -105,6 +108,7 @@ export const createAnnotationUtils = (page: Page, scratch: Scratch) => {
     pressAtPointer,
     dragPointerTo,
     rightPressAtPointer,
+    canvasCenter,
     setupTest,
     dragFromViewCenter,
     drawSquare,

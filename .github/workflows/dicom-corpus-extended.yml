@@ -8,7 +8,6 @@ jobs:
     name: Extended DICOM corpus
     runs-on: ubuntu-latest
     env:
-      DOWNLOAD_TIMEOUT: 90000
       DICOM_CORPUS: extended
       VITE_SHOW_SAMPLE_DATA: true
     steps:
@@ -27,4 +26,4 @@ jobs:
           key: dicom-corpus-extended-${{ hashFiles('tests/datasets.ts', 'tests/dicomVolumeCorpus.json', 'tests/dicomCompositionCorpus.json', 'tests/dicomExtendedCorpus.json') }}
           restore-keys: dicom-corpus-extended-
       - name: Run the corpus spec
-        run: env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY npm run test:e2e:chrome -- --spec tests/specs/dicom-volume-corpus.e2e.ts
+        run: env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY npm run test:e2e:chrome -- tests/specs/dicom-volume-corpus.e2e.ts

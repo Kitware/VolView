@@ -1,4 +1,4 @@
-import reference from '../oct/reference.json';
+import reference from '../oct/reference.json' with { type: 'json' };
 import { createSyntheticOCT, element, syntheticScalars } from '../oct/dicom';
 import { part10File } from '../../specs/syntheticDicom';
 import { htj2kSignedFrames } from './htj2kCorpus';

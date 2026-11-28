@@ -1,11 +1,8 @@
 import { createHash } from 'node:crypto';
-import { writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { TEMP_DIR } from '../../wdio.shared.conf';
+import { test, expect } from '../fixtures';
 import { openDicomPage } from '../dicomPages';
 import { enhancedFixtureBytes } from '../fixtures/dicom-pages/enhancedFixtures';
 import { startDicomPages } from '../fixtures/dicom-pages/server.mjs';
-import { volViewPage } from '../pageobjects/volview.page';
 
 const frames = {
   uneven: enhancedFixtureBytes({
@@ -68,39 +65,43 @@ const scenarios = [
   },
 ];
 
-describe('Encoded multiframe reconstruction contracts', () => {
+test.describe('Encoded multiframe reconstruction contracts', () => {
   let fixture: Awaited<ReturnType<typeof startDicomPages>>;
-  before(async () => {
+  test.beforeAll(async () => {
     fixture = await startDicomPages({ kinds: ['corpus'], fixtures: frames });
   });
-  after(async () => fixture?.close());
+  test.afterAll(async () => fixture?.close());
 
   for (const { name, source, values, reconstruction } of scenarios) {
-    it(`loads ${name} frames from ${source} in frame order with ${reconstruction} reconstruction`, async () => {
+    test(`loads ${name} frames from ${source} in frame order with ${reconstruction} reconstruction`, async ({
+      page,
+    }) => {
       const params = new URLSearchParams({ name, source });
-      await openDicomPage(`${fixture.urls.corpus}?${params}`);
-      await expect($('#pixel-hash')).toHaveText(hashFrames(values));
-      await expect($('#reconstruction')).toHaveText(reconstruction);
+      await openDicomPage(page, `${fixture.urls.corpus}?${params}`);
+      await expect(page.locator('#pixel-hash')).toHaveText(hashFrames(values));
+      await expect(page.locator('#reconstruction')).toHaveText(reconstruction);
     });
   }
 });
 
-describe('Multiframe reconstruction notices', () => {
-  it('shows the user why temporal frames have approximate spatial placement', async () => {
+test.describe('Multiframe reconstruction notices', () => {
+  test('shows the user why temporal frames have approximate spatial placement', async ({
+    page,
+    scratch,
+    volview,
+  }) => {
     const file = 'enhanced-temporal.dcm';
-    writeFileSync(resolve(TEMP_DIR, file), frames.temporal);
-    await volViewPage.open(`?urls=[tmp/${file}]`);
-    await volViewPage.waitForVolumeCardSliceCounts([2]);
-    await volViewPage.waitForViews();
-    expect(await volViewPage.getNotificationsCount()).toBe(1);
-    await volViewPage.openNotifications();
-    const warning = $('.message-center .warn-message');
-    await expect(warning).toHaveText(
-      expect.stringContaining('did not load as one sound volume')
-    );
+    scratch.writeFile(file, frames.temporal);
+    await volview.open(`?urls=[tmp/${file}]`);
+    await volview.waitForVolumeCardSliceCounts([2]);
+    await volview.waitForViews();
+    expect(await volview.getNotificationsCount()).toBe(1);
+    await volview.openNotifications();
+    const warning = page.locator('.message-center .warn-message');
+    await expect(warning).toContainText('did not load as one sound volume');
     await warning.click();
-    await expect($('.message-center .details')).toHaveText(
-      expect.stringContaining('positions and measurements')
+    await expect(page.locator('.message-center .details')).toContainText(
+      'positions and measurements'
     );
   });
 });

@@ -1,25 +1,20 @@
-import { writeFileSync } from 'node:fs';
-import { join } from 'node:path';
 import JSZip from 'jszip';
-import { TEMP_DIR } from '../../wdio.shared.conf';
-import { volViewPage } from '../pageobjects/volview.page';
+import { test, expect } from '../fixtures';
 import {
   buildSyntheticDicom,
   buildSyntheticCineDicom,
   newUid,
 } from './syntheticDicom';
-import { canvasCenter, clickAt } from './annotationTestUtils';
-import { advanceCineFrame, waitForFrame } from './cineTestUtils';
-import { openSegmentShapes } from './segmentationTestUtils';
-import {
-  dropFiles,
-  openVolViewPage,
-  SESSION_SAVE_TIMEOUT,
-  waitForFileExists,
-} from './utils';
 
-describe('DICOM archive state and independent clips', () => {
-  it('restores the ruler saved with two series from one archive', async () => {
+test.describe('DICOM archive state and independent clips', () => {
+  test('restores the ruler saved with two series from one archive', async ({
+    page,
+    scratch,
+    volview,
+    utils,
+    annotation,
+    segmentation,
+  }) => {
     const archive = new JSZip();
     const studyUid = newUid();
     for (const count of [2, 3]) {
@@ -43,45 +38,52 @@ describe('DICOM archive state and independent clips', () => {
       }
     }
     const name = 'two-series-with-state.zip';
-    writeFileSync(
-      join(TEMP_DIR, name),
+    scratch.writeFile(
+      name,
       await archive.generateAsync({ type: 'nodebuffer' })
     );
-    await volViewPage.open('?urls=[tmp/' + name + ']');
-    await volViewPage.waitForVolumeCardSliceCounts([2, 3]);
-    await volViewPage.waitForViews();
+    await volview.open('?urls=[tmp/' + name + ']');
+    await volview.waitForVolumeCardSliceCounts([2, 3]);
+    await volview.waitForViews();
 
-    const view = (await volViewPage.getViews2D())[0];
-    const { centerX: x, centerY: y } = await canvasCenter(view);
-    await volViewPage.selectTool('mdi-ruler');
-    await clickAt(x - 30, y);
-    await clickAt(x + 30, y);
-    await openSegmentShapes();
-    const rulerCount = () =>
-      $$('[data-testid="segment-shape-row"] i.mdi-ruler').length;
-    await browser.waitUntil(async () => (await rulerCount()) === 1, {
-      timeoutMsg: 'Expected the placed ruler in the measurements list',
-    });
+    const view = volview.views2D.first();
+    const { centerX: x, centerY: y } = await annotation.canvasCenter(view);
+    await volview.selectTool('mdi-ruler');
+    await annotation.clickAt(x - 30, y);
+    await annotation.clickAt(x + 30, y);
+    await segmentation.openSegmentShapes();
+    const rulers = page.locator(
+      '[data-testid="segment-shape-row"] i.mdi-ruler'
+    );
+    await expect(
+      rulers,
+      'Expected the placed ruler in the measurements list'
+    ).toHaveCount(1);
 
-    const saved = await volViewPage.saveSession();
-    await waitForFileExists(join(TEMP_DIR, saved), SESSION_SAVE_TIMEOUT);
-    await openVolViewPage(saved);
-    await openSegmentShapes();
-    await browser.waitUntil(async () => (await rulerCount()) === 1, {
-      timeoutMsg: 'Expected the restored archive dataset to retain its ruler',
-    });
-    await $('button[data-testid="module-tab-Data"]').click();
-    await volViewPage.waitForVolumeCardSliceCounts([2, 3]);
-    expect(await volViewPage.getNotificationsCount()).toBe(0);
+    const saved = await volview.saveSession();
+    await utils.openVolViewPage(saved);
+    await segmentation.openSegmentShapes();
+    await expect(
+      rulers,
+      'Expected the restored archive dataset to retain its ruler'
+    ).toHaveCount(1);
+    await page.locator('button[data-testid="module-tab-Data"]').click();
+    await volview.waitForVolumeCardSliceCounts([2, 3]);
+    expect(await volview.getNotificationsCount()).toBe(0);
   });
 
-  it('plays two equal-shaped ultrasound clips sharing a series', async () => {
+  test('plays two equal-shaped ultrasound clips sharing a series', async ({
+    page,
+    scratch,
+    volview,
+    utils,
+    cine,
+  }) => {
     const studyUid = newUid();
     const seriesUid = newUid();
-    const files = ['first-clip.dcm', 'second-clip.dcm'].map((name) => {
-      const file = join(TEMP_DIR, name);
-      writeFileSync(
-        file,
+    const files = ['first-clip.dcm', 'second-clip.dcm'].map((name) =>
+      scratch.writeFile(
+        name,
         buildSyntheticCineDicom({
           studyUid,
           seriesUid,
@@ -90,18 +92,17 @@ describe('DICOM archive state and independent clips', () => {
           cols: 32,
           numberOfFrames: 3,
         })
-      );
-      return file;
-    });
-    await volViewPage.open();
-    await $('#app-container').waitForDisplayed();
-    await dropFiles(files);
-    await volViewPage.waitForVolumeCardSliceCounts([3, 3]);
-    await $('.play-controls').waitForDisplayed();
-    await waitForFrame(1);
-    await volViewPage.focusFirst2DView();
-    await advanceCineFrame();
-    await waitForFrame(2);
-    expect(await volViewPage.getNotificationsCount()).toBe(0);
+      )
+    );
+    await volview.open();
+    await expect(page.locator('#app-container')).toBeVisible();
+    await utils.dropFiles(files);
+    await volview.waitForVolumeCardSliceCounts([3, 3]);
+    await expect(page.locator('.play-controls').first()).toBeVisible();
+    await cine.waitForFrame(1);
+    await volview.focusFirst2DView();
+    await cine.advanceCineFrame();
+    await cine.waitForFrame(2);
+    expect(await volview.getNotificationsCount()).toBe(0);
   });
 });

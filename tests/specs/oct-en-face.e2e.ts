@@ -3,8 +3,7 @@ import path from 'node:path';
 import { test, expect, registerOctTestHooks } from '../fixtures';
 import { waitForTransitions } from '../pageobjects/volview.page';
 import { CANVAS, CONTROLS, PANEL, WINDOW_TOOL } from './octTestUtils';
-import { deflatedExplicitVR, nonOCTDicom } from '../fixtures/oct/volumes';
-import { createSyntheticOCT } from '../fixtures/oct/dicom';
+import { nonOCTDicom } from '../fixtures/oct/volumes';
 import { paddedSyntheticOCT } from '../fixtures/oct/padding';
 import { reference, STEM } from './octInteractionTestUtils';
 
@@ -256,10 +255,9 @@ test.describe('Retinal OCT en-face', () => {
     layerDisplay,
   }) => {
     const name = STEM + '/retina-padding.dcm';
-    const padded = paddedSyntheticOCT(createSyntheticOCT());
     fs.writeFileSync(
       path.join(utils.makeTempDir(STEM), 'retina-padding.dcm'),
-      padded.bytes
+      paddedSyntheticOCT()
     );
     await utils.openVolViewPage(name);
     await oct.selectEnFace();
@@ -288,8 +286,7 @@ test.describe('Retinal OCT en-face', () => {
   }) => {
     const directory = utils.makeTempDir(STEM);
     const file = path.join(directory, 'retina-padding-deflated.dcm');
-    const padded = paddedSyntheticOCT(createSyntheticOCT());
-    fs.writeFileSync(file, deflatedExplicitVR(padded.bytes));
+    fs.writeFileSync(file, paddedSyntheticOCT({ deflate: true }));
     await volview.open();
     await utils.openThroughDialog(file);
     await volview.waitForViews();
@@ -310,7 +307,7 @@ test.describe('Retinal OCT en-face', () => {
     const image = STEM + '/ordinary-volume.dcm';
     fs.writeFileSync(
       path.join(utils.makeTempDir(STEM), 'ordinary-volume.dcm'),
-      nonOCTDicom(createSyntheticOCT())
+      nonOCTDicom()
     );
     await utils.openVolViewPage(image);
     await oct.selectEnFace();
